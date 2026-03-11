@@ -39,17 +39,10 @@ def main(name, port, host):
         clock.tick(60) # run at 60 frames per second
 
 def get_action(name,keys):
-    acceleration=pygame.Vector2(0,0)
-    accel=0.5
-    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-        acceleration.x -= accel
-    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-        acceleration.x += accel
-    if keys[pygame.K_UP] or keys[pygame.K_w]:
-        acceleration.y -= accel
-    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-        acceleration.y += accel
-    return Action(name, acceleration)
+    left = keys[pygame.K_LEFT] or keys[pygame.K_a]
+    right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
+    jump = keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_SPACE]
+    return Action(name, left, right, jump)
 
 class Name_Textures: # class to generate and store textures of user names
 
