@@ -70,13 +70,28 @@ class Game_State:
         for proj in self.projectiles:
             proj.update(self.world_size)
             
+        self.projectiles = [p for p in self.projectiles if not p.is_off_screen(self.world_size)]
+            
         # Spawn projectiles occasionally
-        if random.random() < 0.02 and len(self.projectiles) < 3:
-            x = random.randint(100, int(self.world_size.x) - 100)
-            y = 50
-            speed_x = random.choice([-3, 3])
-            speed_y = 3
-            self.projectiles.append(Projectile((x, y), (speed_x, speed_y)))
+        if random.random() < 0.03:
+            size = random.randint(10, 40)
+            edge = random.choice(["top", "left", "right"])
+            if edge == "top":
+                x = random.randint(0, int(self.world_size.x))
+                y = -size - 5
+                speed_x = random.uniform(-4, 4)
+                speed_y = random.uniform(2, 6)
+            elif edge == "left":
+                x = -size - 5
+                y = random.randint(0, int(self.world_size.y) // 2)
+                speed_x = random.uniform(2, 6)
+                speed_y = random.uniform(1, 4)
+            else:
+                x = self.world_size.x + 5
+                y = random.randint(0, int(self.world_size.y) // 2)
+                speed_x = random.uniform(-6, -2)
+                speed_y = random.uniform(1, 4)
+            self.projectiles.append(Projectile((x, y), (speed_x, speed_y), size))
         
     def draw(self, name, surface, name_textures):
         rect = pygame.Rect(pygame.Vector2(0, 0), self.world_size)
