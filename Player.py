@@ -63,10 +63,6 @@ class Player:
                     player_rect.left = platform.rect.right
                     self.position.x = player_rect.x
                     self.speed.x = 0
-        
-        for platform_jump in platforms_jump:
-            if player_rect.colliderect(platform_jump.rect):
-                
 
         # Move Y
         self.position.y += self.speed.y

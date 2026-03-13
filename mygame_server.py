@@ -36,7 +36,10 @@ def main(port, host):
 
         # Update game state when frame time has elapsed
         if time.time() - prev_time >= 1 / game_fps:
+            delta_time = time.time() - prev_time
+            game_state.tick_timer(delta_time)
             prev_time = time.time()
+            
             update_game_state(game_state, actions)
 
 def update_game_state(game_state, actions):

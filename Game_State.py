@@ -18,10 +18,6 @@ class Game_State:
             Platform(200, 400, 150, 20),
             Platform(500, 300, 150, 20)
         ]
-        
-        self.platforms_jump = [
-            Platform_jump(500, 500, 150, 20)
-        ]
 
         self.doors = [
             Door(0, world_size.y - Door.height - 20, True),
@@ -29,11 +25,20 @@ class Game_State:
         ]
         
         self.projectiles = []
+        self.timer = 0.0
+        self.timer_started = False
 
     def __repr__(self):
         return f"world_size: {self.world_size}\nunits: {self.units}"
 
+    def tick_timer(self, delta_time):
+        if self.timer_started:
+            self.timer += delta_time
+
     def update(self, action):
+        if action.is_start_game():
+            self.timer_started = True
+
         name = action.get_name()
         if not name in self.players: # if the name is not seen before
             player = Player(self.world_size, name) # create a new player

@@ -22,6 +22,7 @@ def main(name, port, host):
     name_textures = Name_Textures()
     game_state = None
     started = False
+    just_started = False
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
     
@@ -33,6 +34,7 @@ def main(name, port, host):
                 running = False
             if not started and event.type == pygame.KEYDOWN:
                 started = True
+                just_started = True
 
         if not started:
             # Draw start screen
@@ -45,20 +47,32 @@ def main(name, port, host):
             surface.blit(title, title_rect)
             surface.blit(prompt, prompt_rect)
         else:
-            socket.send_pyobj(get_action(name, pygame.key.get_pressed())) # send action
+            action = get_action(name, pygame.key.get_pressed(), start_game=just_started)
+            just_started = False
+            socket.send_pyobj(action) # send action
+            
             if game_state:
                 game_state.draw(name,surface,name_textures) # draw while waiting for answer
+
+                # Draw timer
+                minutes = int(game_state.timer) // 60
+                seconds = int(game_state.timer) % 60
+                time_str = f"{minutes:02d}:{seconds:02d}"
+                time_text = font.render(time_str, False, (255, 255, 255))
+                time_rect = time_text.get_rect(midtop=(display.get_width() // 2, 10))
+                surface.blit(time_text, time_rect)
+
             game_state = socket.recv_pyobj() # receive game_state
             #print("game_state:",game_state)        
 
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
 
-def get_action(name,keys):
+def get_action(name, keys, start_game=False):
     left = keys[pygame.K_LEFT] or keys[pygame.K_a]
     right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
     jump = keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_SPACE]
-    return Action(name, left, right, jump)
+    return Action(name, left, right, jump, start_game)
 
 class Name_Textures: # class to generate and store textures of user names
 

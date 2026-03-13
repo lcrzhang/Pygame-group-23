@@ -1,13 +1,14 @@
 class Action:
 
-    def __init__(self, name, left, right, jump):
+    def __init__(self, name, left, right, jump, start_game=False):
         self.name = name
         self.left = left
         self.right = right
         self.jump = jump
+        self.start_game = start_game
 
     def __repr__(self):
-        return f"name: {self.name} left:{self.left} right:{self.right} jump:{self.jump}"
+        return f"name: {self.name} left:{self.left} right:{self.right} jump:{self.jump} start:{self.start_game}"
 
     def get_name(self):
         return self.name
@@ -20,3 +21,6 @@ class Action:
         
     def is_jump(self):
         return self.jump
+
+    def is_start_game(self):
+        return self.start_game
