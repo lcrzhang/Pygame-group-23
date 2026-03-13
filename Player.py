@@ -32,9 +32,11 @@ class Player:
             self.on_ground = False
 
         # Drop through platforms when holding down while on a platform
-        if action.is_down() and self.on_ground:
-            self.drop_through = True
+        self.drop_through = action.is_down()
+        if self.drop_through and self.on_ground:
             self.on_ground = False
+            # Give a small downward push so we actually clear the platform
+            self.speed.y = 4
 
     def update(self, platforms, world_size):
         # Apply gravity
