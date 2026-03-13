@@ -59,7 +59,8 @@ class Player:
             self.speed.x = 0
             player_rect.x = int(self.position.x)
  
-        # Move Y
+        # Move Y (remember previous vertical position so we only land when coming from above)
+        prev_bottom = player_rect.bottom
         self.position.y += self.speed.y
         player_rect.y = int(self.position.y)
         self.on_ground = False
@@ -77,7 +78,7 @@ class Player:
 
         for platform in platforms:
             if player_rect.colliderect(platform.rect):
-                if self.speed.y > 0: # Falling down
+                if self.speed.y > 0 and prev_bottom <= platform.rect.top: # Falling down
                     player_rect.bottom = platform.rect.top
                     self.position.y = player_rect.y
                     self.speed.y = 0
