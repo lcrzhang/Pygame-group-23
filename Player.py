@@ -10,6 +10,7 @@ class Player:
         self.position = pygame.Vector2(world_size.x // 2, world_size.y // 2)
         self.speed = pygame.Vector2(0, 0)
         self.on_ground = False
+        self.is_jumping_btn_held = False
 
     def __repr__(self):
         return f"position: {self.position} speed: {self.speed}"
@@ -23,13 +24,18 @@ class Player:
             self.speed.x -= accel
         if action.is_right():
             self.speed.x += accel
-        if action.is_jump() and self.on_ground:
+            
+        self.is_jumping_btn_held = action.is_jump()
+        if self.is_jumping_btn_held and self.on_ground:
             self.speed.y = -12
             self.on_ground = False
 
     def update(self, platforms, world_size):
         # Apply gravity
-        self.speed.y += 0.5
+        if self.speed.y < 0 and not self.is_jumping_btn_held:
+            self.speed.y += 1.5
+        else:
+            self.speed.y += 0.5
         
         # Apply friction
         self.speed.x *= 0.85
