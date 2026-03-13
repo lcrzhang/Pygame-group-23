@@ -3,6 +3,7 @@ import random
 
 from Player import Player
 from Platform import Platform
+from Platform_jump import Platform_jump
 from Door import Door
 from Projectile import Projectile
 
@@ -18,6 +19,10 @@ class Game_State:
             Platform(500, 300, 150, 20)
         ]
         
+        self.platforms_jump = [
+            Platform_jump(500, 500, 150, 20)
+        ]
+
         self.doors = [
             Door(0, world_size.y - Door.height - 20, True),
             Door(world_size.x - Door.width, world_size.y - Door.height - 20, False)
