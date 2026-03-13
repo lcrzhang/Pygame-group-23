@@ -58,18 +58,7 @@ class Player:
             self.position.x = world_size.x - Player.width
             self.speed.x = 0
             player_rect.x = int(self.position.x)
-            
-        for platform in platforms:
-            if player_rect.colliderect(platform.rect):
-                if self.speed.x > 0: # Moving right
-                    player_rect.right = platform.rect.left
-                    self.position.x = player_rect.x
-                    self.speed.x = 0
-                elif self.speed.x < 0: # Moving left
-                    player_rect.left = platform.rect.right
-                    self.position.x = player_rect.x
-                    self.speed.x = 0
-
+ 
         # Move Y
         self.position.y += self.speed.y
         player_rect.y = int(self.position.y)
@@ -93,10 +82,6 @@ class Player:
                     self.position.y = player_rect.y
                     self.speed.y = 0
                     self.on_ground = True
-                elif self.speed.y < 0: # Jumping up
-                    player_rect.top = platform.rect.bottom
-                    self.position.y = player_rect.y
-                    self.speed.y = 0
 
     def draw(self, surface, name_textures):
         rect = pygame.Rect(self.position.x, self.position.y, Player.width, Player.height)
