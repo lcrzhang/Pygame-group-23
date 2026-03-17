@@ -20,6 +20,9 @@ class Game_State:
         self.projectiles = []
         self.timer = 0.0
         self.timer_started = False
+
+        # Tracks whether the player pressed start (only affects the very first level)
+        self.started_once = False
         
         self.current_level_index = -1
         self.current_level = None
@@ -44,10 +47,14 @@ class Game_State:
         # Remember the current level data so we can spawn the door later
         self.current_level = level
 
-        # Reset the countdown at 1 minute (60 seconds) but DO NOT start it here.
-        # Timer will start when the first player enters the level.
+        # Reset the countdown at 1 minute (60 seconds).
+        # Start it immediately for levels after the first one, but for the very first level
+        # we only start when the player presses Start.
         self.timer = 60.0
-        self.timer_started = False
+        self.timer_started = self.started_once
+
+        # reset last-tick so the first tick doesn't consume a large delta
+        self._last_tick_ms = pygame.time.get_ticks()
 
         # Teleport all existing players to the spawn point
         spawn_x, spawn_y = level.spawn
@@ -70,7 +77,9 @@ class Game_State:
                     self.doors = [Door(self.current_level.door[0], self.current_level.door[1], False)]
 
     def update(self, action):
-        if action.is_start_game():
+        # When the start button is pressed for the first time, begin the timer for the first level.
+        if action.is_start_game() and not self.started_once:
+            self.started_once = True
             self.timer_started = True
 
         name = action.get_name()
@@ -78,9 +87,7 @@ class Game_State:
             player = Player(self.world_size, name) # create a new player
             self.units.append(player)              # add to units
             self.players[name] = player            # add to players too for fast lookup by name 
-            # Start the level timer when the first player enters this level
-            if not self.timer_started and len(self.units) == 1:
-                self.timer_started = True
+            # (Do NOT auto-start the timer here; first-level start is controlled by start button only)
 
         player = self.players[name]
         
