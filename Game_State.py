@@ -38,6 +38,7 @@ class Game_State:
             index = random.choice(choices) if choices else 0
         self.current_level_index = index
         level = LEVELS[index]
+        self.current_level = level
 
         self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
         self.doors = [Door(level.door[0], level.door[1], False)]
