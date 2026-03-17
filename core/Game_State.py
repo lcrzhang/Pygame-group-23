@@ -1,13 +1,13 @@
 import pygame
 import random
 
-from Player import Player
-from Platform import Platform
+from entities.Player import Player
+from entities.Platform import Platform
 
-from Door import Door
-from Projectile import Projectile, ProjectileWarning
-from Levels import LEVELS, AVAILABLE_MODIFIERS
-from Difficulty import DifficultySettings, MODIFIER_UNLOCK_LEVEL, MODIFIER_CHANCE
+from entities.Door import Door
+from entities.Projectile import Projectile, ProjectileWarning
+from levels.Levels import LEVELS, AVAILABLE_MODIFIERS
+from core.Difficulty import DifficultySettings, MODIFIER_UNLOCK_LEVEL, MODIFIER_CHANCE
 
 class Game_State:
 

@@ -2,8 +2,8 @@ import sys
 import zmq
 import pygame
 
-from Action import Action
-from Game_State import Game_State
+from core.Action import Action
+from core.Game_State import Game_State
 
 def main(name, port, host):
     # connect to server

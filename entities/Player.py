@@ -20,7 +20,7 @@ class Player:
         return self.position
     
     def apply_action(self, action, modifiers=None):
-        from Levels import PlayerModifiers
+        from levels.Levels import PlayerModifiers
         if modifiers is None:
             modifiers = PlayerModifiers()
 
@@ -42,7 +42,7 @@ class Player:
             self.speed.y = 4
 
     def update(self, platforms, world_size, modifiers=None):
-        from Levels import PlayerModifiers
+        from levels.Levels import PlayerModifiers
         if modifiers is None:
             modifiers = PlayerModifiers()
 
