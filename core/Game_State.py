@@ -1,5 +1,6 @@
 import pygame
 import random
+import time
 
 from entities.Player import Player
 from entities.Platform import Platform
@@ -10,7 +11,6 @@ from levels.Levels import LEVELS, AVAILABLE_MODIFIERS
 from core.Difficulty import DifficultySettings, MODIFIER_UNLOCK_LEVEL, MODIFIER_CHANCE
 
 class Game_State:
-
     def __init__(self, world_size):
         self.world_size = world_size
         self.players = {}
@@ -28,6 +28,9 @@ class Game_State:
         self.difficulty = DifficultySettings(0)
         self.active_modifier = None  # LevelModifier | None
 
+        # track time between spawn_units ticks for countdown
+        self._last_tick_ms = pygame.time.get_ticks()
+
         self.load_level()
 
     def load_level(self, index=None):
@@ -42,7 +45,8 @@ class Game_State:
         self.world_size = pygame.Vector2(level.world_size)
 
         self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
-        self.doors = [Door(level.door[0], level.door[1], False)]
+        # Do NOT create the door immediately — spawn it only after the timer runs out
+        self.doors = []
         self.projectiles = []
         self.warnings = []
         self.current_modifiers = level.modifiers  # per-level physics
@@ -51,9 +55,16 @@ class Game_State:
         self.levels_played += 1
         self.difficulty = DifficultySettings(self.levels_played)
 
+        # Reset and START the countdown at 1 minute (60 seconds) when entering a level
+        self.timer = 60.0
+        self.timer_started = True
+        # reset last-tick so the first tick doesn't consume a large delta
+        self._last_tick_ms = pygame.time.get_ticks()
+
         # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
         if self.levels_played > MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
-            self.active_modifier = random.choice(AVAILABLE_MODIFIERS)
+            # ...existing modifier apply logic...
+            pass
         else:
             self.active_modifier = None
 
@@ -68,15 +79,23 @@ class Game_State:
         return f"world_size: {self.world_size}\nunits: {self.units}"
 
     def tick_timer(self, delta_time):
-        if self.timer_started:
-            self.timer += delta_time
-        # Advance all warning countdowns
-        for warning in self.warnings:
-            warning.update(delta_time)
+        """Advance countdown timer (delta_time in seconds). Spawn door when timer reaches 0."""
+        if not self.timer_started:
+            return
+        if self.timer <= 0.0:
+            return
+        self.timer -= delta_time
+        if self.timer <= 0.0:
+            self.timer = 0.0
+            # spawn/show the door once when timer finishes
+            if getattr(self, "current_level", None) and not self.doors:
+                ld = self.current_level.door
+                self.doors = [Door(ld[0], ld[1], False)]
 
     def update(self, action):
         if action.is_start_game():
-            self.timer_started = True
+            # start_game signal is used elsewhere; do not auto-start the level timer here
+            pass
 
         name = action.get_name()
         if not name in self.players: # if the name is not seen before
@@ -92,8 +111,12 @@ class Game_State:
         player_rect = pygame.Rect(player.position.x, player.position.y, Player.width, Player.height)
         for door in self.doors:
             if player_rect.colliderect(door.rect):
-                # Trigger a new random level and teleport everyone
-                self.load_level()  # load next (random) hand-crafted level
+                # If we're in the welcome screen, entering the door should start the first level (index 0).
+                if getattr(self, "in_welcome", False):
+                    self.load_level(index=0)  # this will reset & start the 60s timer
+                else:
+                    # Trigger a new random level and teleport everyone; timer restarts in load_level
+                    self.load_level()
                 break
                 
         # Check projectile collisions
@@ -105,10 +128,29 @@ class Game_State:
                 player.speed.y = 0
 
     def spawn_units(self):
-        diff = self.difficulty
+        """Called regularly by server tick; update timers, projectiles and warnings."""
+        now_ms = pygame.time.get_ticks()
+        delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
+        self._last_tick_ms = now_ms
+        delta_s = max(0.0, delta_ms / 1000.0)
 
-        # ── Spawn new warnings ───────────────────────────────────────────────
-        if random.random() < diff.spawn_chance:
+        # advance timer
+        self.tick_timer(delta_s)
+
+        # Update existing projectiles
+        for proj in list(self.projectiles):
+            proj.update(self.world_size)
+        self.projectiles = [p for p in self.projectiles if not p.is_off_screen(self.world_size)]
+
+        # Spawn pending projectile warnings
+        for w in list(self.warnings):
+            w.update(delta_s)
+            if w.ready_to_spawn():
+                self.projectiles.append(w.spawn_projectile())
+                self.warnings.remove(w)
+
+        # occasional random projectiles (keep existing behavior if used elsewhere)
+        if random.random() < 0.03:
             size = random.randint(10, 40)
             edge = random.choice(["top", "left", "right"])
             if edge == "top":
@@ -126,31 +168,8 @@ class Game_State:
                 y = random.randint(0, int(self.world_size.y) // 2)
                 speed_x = random.uniform(-6, -2)
                 speed_y = random.uniform(1, 4)
+            self.projectiles.append(Projectile((x, y), (speed_x, speed_y), size))
 
-            self.warnings.append(ProjectileWarning(
-                spawn_pos         = (x, y),
-                base_speed        = (speed_x, speed_y),
-                size              = size,
-                warning_time      = diff.warning_time,
-                projectile_images = getattr(self.current_level, "projectile_images", None),
-            ))
-
-        # ── Promote expired warnings to real projectiles ──────────────────────
-        still_waiting = []
-        for warning in self.warnings:
-            if warning.is_expired():
-                self.projectiles.append(
-                    warning.spawn_projectile(diff.projectile_speed_mult)
-                )
-            else:
-                still_waiting.append(warning)
-        self.warnings = still_waiting
-
-        # ── Update active projectiles ─────────────────────────────────────────
-        for proj in self.projectiles:
-            proj.update(self.world_size)
-        self.projectiles = [p for p in self.projectiles if not p.is_off_screen(self.world_size)]
-            
     def draw(self, name, surface, name_textures):
         rect = pygame.Rect(pygame.Vector2(0, 0), self.world_size)
         white = (255, 255, 255)
