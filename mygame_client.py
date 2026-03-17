@@ -19,6 +19,8 @@ def main(name, port, host):
     surface = pygame.display.get_surface()
     clock = pygame.time.Clock()
     background_color = (0,0,0)
+    background_cache = {}   # cache loaded background images (store original surfaces)
+    background_image = None
     name_textures = Name_Textures()
     game_state = None
     started = False
@@ -50,9 +52,29 @@ def main(name, port, host):
             action = get_action(name, pygame.key.get_pressed(), start_game=just_started)
             just_started = False
             socket.send_pyobj(action) # send action
-            
-            if game_state:
-                game_state.draw(name,surface,name_textures) # draw while waiting for answer
+             
+            # Draw background based on last received game_state (if any)
+            if game_state and getattr(game_state, "current_level", None):
+                lvl_bg = getattr(game_state.current_level, "background", None)
+                if isinstance(lvl_bg, (tuple, list)) and len(lvl_bg) == 3:
+                    # plain RGB background
+                    background_color = tuple(lvl_bg)
+                    surface.fill(background_color)
+                elif isinstance(lvl_bg, str):
+                    # image path: load once and scale to window size each frame
+                    try:
+                        if lvl_bg not in background_cache:
+                            background_cache[lvl_bg] = pygame.image.load(lvl_bg).convert()
+                        bg_orig = background_cache[lvl_bg]
+                        bg_scaled = pygame.transform.scale(bg_orig, (display.get_width(), display.get_height()))
+                        surface.blit(bg_scaled, (0, 0))
+                    except Exception:
+                        surface.fill(background_color)
+                else:
+                    surface.fill(background_color)
+
+                # draw last game_state on top of background
+                game_state.draw(name, surface, name_textures)
 
                 # Draw timer
                 minutes = int(game_state.timer) // 60
@@ -61,7 +83,10 @@ def main(name, port, host):
                 time_text = font.render(time_str, False, (255, 255, 255))
                 time_rect = time_text.get_rect(midtop=(display.get_width() // 2, 10))
                 surface.blit(time_text, time_rect)
-
+            else:
+                # no game state yet — clear to default
+                surface.fill(background_color)
+ 
             game_state = socket.recv_pyobj() # receive game_state
             #print("game_state:",game_state)        
 
@@ -91,10 +116,10 @@ if __name__ == "__main__":
     name = "_"
     port = 2345
     host = "127.0.0.1"
-    if len(sys.argv)>1:
+    if len(sys.argv) > 1:
         name = sys.argv[1]
-    if len(sys.argv)>2:
+    if len(sys.argv) > 2:
         port = int(sys.argv[2])
-    if len(sys.argv)>3:
+    if len(sys.argv) > 3:
         host = sys.argv[3]
     main(name, port, host)

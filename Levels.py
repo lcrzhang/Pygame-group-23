@@ -99,7 +99,7 @@ LEVEL_1 = Level(
     ],
     door=(740, 480),
     spawn=(20, 515),
-    background=(20, 20, 40),   # dark blue
+    background="images/level1_bg.png",   # use the exact image filename in the images/ folder
     theme="default",
 )
 
