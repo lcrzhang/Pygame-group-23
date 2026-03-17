@@ -207,6 +207,23 @@ class Game_State:
         if self.active_modifier is not None and fade_alpha > 0:
             self._draw_modifier_badge(surface, self.active_modifier, fade_alpha)
 
+        # ── Level counter (top-right) ───────────────────────────────────────
+        try:
+            font = pygame.font.SysFont("Comic Sans MS", 24)
+            if getattr(self, "current_level", None) is None:
+                level_text = "Welcome"
+            else:
+                # show played level number starting at 1
+                # use levels_played so the counter always starts at 1 for the first entered level
+                level_text = f"Level {max(1, self.levels_played)}"
+            txt_surf = font.render(level_text, True, (255, 255, 255))
+            margin = 10
+            x = surface.get_width() - txt_surf.get_width() - margin
+            y = margin
+            surface.blit(txt_surf, (x, y))
+        except Exception:
+            pass
+
     def _draw_level_name_popup(self, surface, name, fade_alpha=255):
         if fade_alpha <= 0: return
 
