@@ -22,6 +22,9 @@ class Game_State:
         self.timer_started = False
         
         self.current_level_index = -1
+        self.current_level = None
+        # Track time between ticks so we can countdown even though update() doesn't get delta_time
+        self._last_tick_ms = pygame.time.get_ticks()
         self.load_level()
 
     def load_level(self, index=None):
@@ -34,9 +37,18 @@ class Game_State:
         level = LEVELS[index]
 
         self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
-        self.doors = [Door(level.door[0], level.door[1], False)]
+        # Do NOT create the door immediately — spawn it only after the timer runs out
+        self.doors = []
         self.projectiles = []
         self.current_modifiers = level.modifiers  # <-- store per-level physics
+
+        # Remember the current level data so we can spawn the door later
+        self.current_level = level
+
+        # Reset the countdown at 1 minute (60 seconds) but DO NOT start it here.
+        # Timer will start when the first player enters the level.
+        self.timer = 60.0
+        self.timer_started = False
 
         # Teleport all existing players to the spawn point
         spawn_x, spawn_y = level.spawn
@@ -49,8 +61,14 @@ class Game_State:
         return f"world_size: {self.world_size}\nunits: {self.units}"
 
     def tick_timer(self, delta_time):
-        if self.timer_started:
-            self.timer += delta_time
+        # delta_time is seconds; count DOWN from timer when started
+        if self.timer_started and self.timer > 0.0:
+            self.timer -= delta_time
+            if self.timer <= 0.0:
+                self.timer = 0.0
+                # Timer reached zero: spawn/show the door (only once)
+                if self.current_level and not self.doors:
+                    self.doors = [Door(self.current_level.door[0], self.current_level.door[1], False)]
 
     def update(self, action):
         if action.is_start_game():
@@ -61,6 +79,10 @@ class Game_State:
             player = Player(self.world_size, name) # create a new player
             self.units.append(player)              # add to units
             self.players[name] = player            # add to players too for fast lookup by name 
+            # Start the level timer when the first player enters this level
+            if not self.timer_started and len(self.units) == 1:
+                self.timer_started = True
+
         player = self.players[name]
         
         player.apply_action(action, self.current_modifiers)
@@ -83,6 +105,12 @@ class Game_State:
                 player.speed.y = 0
 
     def spawn_units(self):
+        # Update timer using real time delta (spawn_units is called every tick)
+        now_ms = pygame.time.get_ticks()
+        delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
+        self._last_tick_ms = now_ms
+        self.tick_timer(delta_ms / 1000.0)
+
         # Update existing projectiles
         for proj in self.projectiles:
             proj.update(self.world_size)
