@@ -1,7 +1,6 @@
 import sys
 import zmq
 import pygame
-import os
 
 from Action import Action
 from Game_State import Game_State
@@ -18,15 +17,13 @@ def main(name, port, host):
     display = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
     pygame.display.set_caption('mygame')
     surface = pygame.display.get_surface()
+    game_surface = pygame.Surface((800, 600))  # fixed internal render target
     clock = pygame.time.Clock()
     background_color = (0,0,0)
     background_cache = {}   # cache loaded background images (store original surfaces)
+    background_image = None 
     name_textures = Name_Textures()
     game_state = None
-    prev_game_state = None
-    # create sound manager (expects a 'sounds' folder next to the project files)
-    from SoundManager import SoundManager
-    sound = SoundManager()  # will auto-load SFX in ./sounds
     started = False
     just_started = False
     font = pygame.font.SysFont('Comic Sans MS', 48)
@@ -34,7 +31,6 @@ def main(name, port, host):
     
     running = True
     while running:
-        display.fill(background_color)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -42,16 +38,20 @@ def main(name, port, host):
                 started = True
                 just_started = True
 
+        # Always render to a fixed 800x600 surface, then scale to the current window size.
+        # This preserves aspect ratio and avoids stretching when the window is resized.
+        game_surface.fill(background_color)
+
         if not started:
             # Draw start screen
             title = font.render('MyGame', False, (255, 255, 255))
             prompt = small_font.render('Press Enter to start', False, (255, 255, 255))
 
-            title_rect = title.get_rect(center=(display.get_width() // 2, display.get_height() // 2 - 40))
-            prompt_rect = prompt.get_rect(center=(display.get_width() // 2, display.get_height() // 2 + 30))
+            title_rect = title.get_rect(center=(800 // 2, 600 // 2 - 40))
+            prompt_rect = prompt.get_rect(center=(800 // 2, 600 // 2 + 30))
 
-            surface.blit(title, title_rect)
-            surface.blit(prompt, prompt_rect)
+            game_surface.blit(title, title_rect)
+            game_surface.blit(prompt, prompt_rect)
         else:
             action = get_action(name, pygame.key.get_pressed(), start_game=just_started)
             just_started = False
@@ -63,60 +63,47 @@ def main(name, port, host):
                 if isinstance(lvl_bg, (tuple, list)) and len(lvl_bg) == 3:
                     # plain RGB background
                     background_color = tuple(lvl_bg)
-                    surface.fill(background_color)
+                    game_surface.fill(background_color)
                 elif isinstance(lvl_bg, str):
-                    # image path: load once and scale to window size each frame
+                    # image path: load once and scale to game surface size each frame
                     try:
                         if lvl_bg not in background_cache:
                             background_cache[lvl_bg] = pygame.image.load(lvl_bg).convert()
                         bg_orig = background_cache[lvl_bg]
-                        bg_scaled = pygame.transform.scale(bg_orig, (display.get_width(), display.get_height()))
-                        surface.blit(bg_scaled, (0, 0))
+                        bg_scaled = pygame.transform.scale(bg_orig, (800, 600))
+                        game_surface.blit(bg_scaled, (0, 0))
                     except Exception:
-                        surface.fill(background_color)
+                        game_surface.fill(background_color)
                 else:
-                    surface.fill(background_color)
+                    game_surface.fill(background_color)
 
                 # draw last game_state on top of background
-                game_state.draw(name, surface, name_textures)
+                game_state.draw(name, game_surface, name_textures)
 
                 # Draw timer
                 minutes = int(game_state.timer) // 60
                 seconds = int(game_state.timer) % 60
                 time_str = f"{minutes:02d}:{seconds:02d}"
                 time_text = font.render(time_str, False, (255, 255, 255))
-                time_rect = time_text.get_rect(midtop=(display.get_width() // 2, 10))
-                surface.blit(time_text, time_rect)
+                time_rect = time_text.get_rect(midtop=(800 // 2, 10))
+                game_surface.blit(time_text, time_rect)
             else:
                 # no game state yet — clear to default
-                surface.fill(background_color)
+                game_surface.fill(background_color)
 
-            # Receive new game_state from server (blocking until reply)
-            try:
-                new_state = socket.recv_pyobj()
-            except Exception:
-                running = False
-                new_state = None
-
-            # Play background music for the level if available:
-            if new_state is not None:
-                try:
-                    lvl_idx = int(new_state.current_level_index)
-                    # convention: sounds/level1_bgm.ogg, level2_bgm.ogg ...
-                    music_path = os.path.join("sounds", f"level{lvl_idx+1}_bgm.ogg")
-                    sound.play_music(music_path, loops=-1, volume=0.4)
-                except Exception:
-                    pass
-
-                # play door-open SFX when doors appear (detect edge from prev -> current)
-                prev_doors = getattr(prev_game_state, "doors", []) if prev_game_state else []
-                cur_doors = getattr(new_state, "doors", []) or []
-                if len(prev_doors) == 0 and len(cur_doors) > 0:
-                    sound.play_sfx("door_open")
-
-            prev_game_state = new_state
-            game_state = new_state
+            game_state = socket.recv_pyobj() # receive game_state
             #print("game_state:",game_state)        
+
+        # Scale the fixed 800x600 game surface to the window size with aspect ratio preserved.
+        win_w, win_h = display.get_size()
+        scale = min(win_w / 800, win_h / 600)
+        scaled_w = int(800 * scale)
+        scaled_h = int(600 * scale)
+        scaled = pygame.transform.smoothscale(game_surface, (scaled_w, scaled_h))
+
+        # Center the scaled view w/ letterboxing/pillarboxing
+        surface.fill((0, 0, 0))
+        surface.blit(scaled, ((win_w - scaled_w) // 2, (win_h - scaled_h) // 2))
 
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
@@ -145,9 +132,9 @@ if __name__ == "__main__":
     port = 2345
     host = "127.0.0.1"
     if len(sys.argv) > 1:
-        name = sys.argv[1]
+        name = sys.argv[1][:20]
     if len(sys.argv) > 2:
         port = int(sys.argv[2])
-    if len(sys.argv) > 3:
+    if len(sys.argv)>3:
         host = sys.argv[3]
     main(name, port, host)
