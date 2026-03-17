@@ -162,38 +162,47 @@ class ProjectileWarning:
         if blink_phase > 0.5 and not urgent:
             return
 
+        # Direction the projectile will travel (normalised)
+        travel_dir = pygame.Vector2(self.base_speed)
+        if travel_dir.length() > 0:
+            travel_dir = travel_dir.normalize()
+
+        # Edge point, then push the icon just inside the border
         edge  = self._edge_point(world_size)
         scale = self.URGENT_SCALE if urgent else 1.0
         size  = int(self.WARN_SIZE * scale)
 
+        BORDER_INSET = 4          # pixels inside the white border
+        ARROW_LEN    = int(14 * scale)
+        ARROW_WIDTH  = int(6  * scale)
+
+        # Icon centre: start at the edge, step inward so the icon is fully visible
+        icon_centre = edge + travel_dir * (size / 2 + BORDER_INSET)
+
+        WARN_COLOR   = (255, 140, 0)
+        URGENT_COLOR = (255,  30, 30)
+        color = URGENT_COLOR if urgent else WARN_COLOR
+
+        # ── Draw exclamation-mark icon ────────────────────────────────────────
         try:
             icon_orig   = _get_image(_WARNING_IMAGE_PATH)
             icon_scaled = pygame.transform.scale(icon_orig, (size, size))
-            # Centre the icon on the edge point
-            blit_x = int(edge.x - size / 2)
-            blit_y = int(edge.y - size / 2)
+            blit_x = int(icon_centre.x - size / 2)
+            blit_y = int(icon_centre.y - size / 2)
             surface.blit(icon_scaled, (blit_x, blit_y))
         except Exception:
-            # Fallback: draw the original orange triangle if the image fails to load
-            WARN_COLOR   = (255, 140, 0)
-            URGENT_COLOR = (255,  30, 30)
-            color     = URGENT_COLOR if urgent else WARN_COLOR
-            arrow_sz  = int(18 * scale)
+            # Fallback circle if image is missing
+            pygame.draw.circle(surface, color, (int(icon_centre.x), int(icon_centre.y)),
+                               size // 2, 3)
 
-            direction = pygame.Vector2(world_size.x / 2, world_size.y / 2) - edge
-            if direction.length() > 0:
-                direction = direction.normalize()
+        # ── Draw direction arrow next to the icon ─────────────────────────────
+        # Arrow starts from the far edge of the icon, points in travel direction
+        arrow_start = icon_centre + travel_dir * (size / 2 + 4)
+        arrow_tip   = arrow_start + travel_dir * ARROW_LEN
+        perp        = pygame.Vector2(-travel_dir.y, travel_dir.x) * ARROW_WIDTH
 
-            tip        = edge + direction * arrow_sz
-            perp       = pygame.Vector2(-direction.y, direction.x) * (arrow_sz * 0.6)
-            base_left  = edge - direction * 4 + perp
-            base_right = edge - direction * 4 - perp
-
-            pygame.draw.polygon(surface, color, [
-                (int(tip.x),        int(tip.y)),
-                (int(base_left.x),  int(base_left.y)),
-                (int(base_right.x), int(base_right.y)),
-            ])
-
-            ring_r = int(arrow_sz * 0.55 + math.sin(elapsed_frac * math.pi * 6) * 3)
-            pygame.draw.circle(surface, color, (int(tip.x), int(tip.y)), ring_r, 2)
+        pygame.draw.polygon(surface, color, [
+            (int(arrow_tip.x),               int(arrow_tip.y)),
+            (int(arrow_start.x + perp.x),    int(arrow_start.y + perp.y)),
+            (int(arrow_start.x - perp.x),    int(arrow_start.y - perp.y)),
+        ])
