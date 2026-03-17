@@ -19,16 +19,19 @@ class Player:
     def get_position(self):
         return self.position
     
-    def apply_action(self, action):
-        accel = 1.0
+    def apply_action(self, action, modifiers=None):
+        from Levels import PlayerModifiers
+        if modifiers is None:
+            modifiers = PlayerModifiers()
+
         if action.is_left():
-            self.speed.x -= accel
+            self.speed.x -= modifiers.acceleration
         if action.is_right():
-            self.speed.x += accel
+            self.speed.x += modifiers.acceleration
             
         self.is_jumping_btn_held = action.is_jump()
         if self.is_jumping_btn_held and self.on_ground:
-            self.speed.y = -12
+            self.speed.y = modifiers.jump_speed
             self.on_ground = False
 
         # Drop through platforms when holding down while on a platform
@@ -38,19 +41,23 @@ class Player:
             # Give a small downward push so we actually clear the platform
             self.speed.y = 4
 
-    def update(self, platforms, world_size):
+    def update(self, platforms, world_size, modifiers=None):
+        from Levels import PlayerModifiers
+        if modifiers is None:
+            modifiers = PlayerModifiers()
+
         # Apply gravity
         if self.speed.y < 0 and not self.is_jumping_btn_held:
-            self.speed.y += 1.5
+            self.speed.y += modifiers.gravity_hold
         else:
-            self.speed.y += 0.5
+            self.speed.y += modifiers.gravity
         
         # Apply friction
-        self.speed.x *= 0.85
+        self.speed.x *= modifiers.friction
         
         # Cap falling speed
-        if self.speed.y > 15:
-            self.speed.y = 15
+        if self.speed.y > modifiers.max_fall_speed:
+            self.speed.y = modifiers.max_fall_speed
 
         # Move X
         self.position.x += self.speed.x

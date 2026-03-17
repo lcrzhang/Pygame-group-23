@@ -36,6 +36,7 @@ class Game_State:
         self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
         self.doors = [Door(level.door[0], level.door[1], False)]
         self.projectiles = []
+        self.current_modifiers = level.modifiers  # <-- store per-level physics
 
         # Teleport all existing players to the spawn point
         spawn_x, spawn_y = level.spawn
@@ -62,8 +63,8 @@ class Game_State:
             self.players[name] = player            # add to players too for fast lookup by name 
         player = self.players[name]
         
-        player.apply_action(action)
-        player.update(self.platforms, self.world_size)
+        player.apply_action(action, self.current_modifiers)
+        player.update(self.platforms, self.world_size, self.current_modifiers)
         
         # Check door collisions
         player_rect = pygame.Rect(player.position.x, player.position.y, Player.width, Player.height)
