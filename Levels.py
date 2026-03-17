@@ -26,7 +26,7 @@ Max jump height ≈ 150 px.  Max horizontal reach ≈ 320 px per jump.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional, Union, Any
 
 
 @dataclass
@@ -39,6 +39,31 @@ class PlayerModifiers:
     acceleration:   float = 1.0   # horizontal speed delta per frame
     friction:       float = 0.85  # horizontal speed multiplier per frame
     max_fall_speed: float = 15    # terminal falling velocity
+
+
+@dataclass
+class LevelModifier:
+    """A random bonus/malus that can be active for a single level.
+    
+    Currently these are PLACEHOLDERS — they show on the HUD but have
+    no gameplay effect yet.  Implement the effect in Game_State.update()
+    once you are ready.
+    """
+    name:        str               # short display name shown in HUD
+    description: str               # one-line flavour text
+    color:       Tuple[int,int,int] # badge background colour (RGB)
+
+
+# ── Available random modifiers (placeholders) ────────────────────────────────
+# Add more entries here whenever you want new random modifiers.
+
+AVAILABLE_MODIFIERS: List[LevelModifier] = [
+    LevelModifier("Double Jump",  "Allows a second jump in the air",    (80,  40, 160)),
+    LevelModifier("Speed Boost",  "Increases horizontal movement speed", (200, 120,  0)),
+    LevelModifier("Low Gravity",  "Reduces gravity for all players",     ( 30, 140, 200)),
+    LevelModifier("Shield",       "Blocks the next projectile hit",      ( 20, 160,  80)),
+    LevelModifier("Magnet",       "Attracts nearby collectibles",        (180,  30,  80)),
+]
 
 
 @dataclass

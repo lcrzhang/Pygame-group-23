@@ -5,8 +5,9 @@ from Player import Player
 from Platform import Platform
 
 from Door import Door
-from Projectile import Projectile
-from Levels import LEVELS
+from Projectile import Projectile, ProjectileWarning
+from Levels import LEVELS, AVAILABLE_MODIFIERS
+from Difficulty import DifficultySettings, MODIFIER_UNLOCK_LEVEL, MODIFIER_CHANCE
 
 class Game_State:
 
@@ -18,16 +19,15 @@ class Game_State:
         self.platforms = []
         self.doors = []
         self.projectiles = []
+        self.warnings = []          # ProjectileWarning objects waiting to spawn
         self.timer = 0.0
         self.timer_started = False
-
-        # Tracks whether the player pressed start (only affects the very first level)
-        self.started_once = False
         
+        self.levels_played = 0
         self.current_level_index = -1
-        self.current_level = None
-        # Track time between ticks so we can countdown even though update() doesn't get delta_time
-        self._last_tick_ms = pygame.time.get_ticks()
+        self.difficulty = DifficultySettings(0)
+        self.active_modifier = None  # LevelModifier | None
+
         self.load_level()
 
     def load_level(self, index=None):
@@ -40,22 +40,20 @@ class Game_State:
         level = LEVELS[index]
 
         self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
-        # Do NOT create the door immediately — spawn it only after the timer runs out
-        self.doors = []
+        self.doors = [Door(level.door[0], level.door[1], False)]
         self.projectiles = []
-        self.current_modifiers = level.modifiers  # <-- store per-level physics
+        self.warnings = []
+        self.current_modifiers = level.modifiers  # per-level physics
 
-        # Remember the current level data so we can spawn the door later
-        self.current_level = level
+        # Increment difficulty
+        self.levels_played += 1
+        self.difficulty = DifficultySettings(self.levels_played)
 
-        # Reset the countdown at 1 minute (60 seconds).
-        # Start it immediately for levels after the first one, but for the very first level
-        # we only start when the player presses Start.
-        self.timer = 60.0
-        self.timer_started = self.started_once
-
-        # reset last-tick so the first tick doesn't consume a large delta
-        self._last_tick_ms = pygame.time.get_ticks()
+        # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
+        if self.levels_played > MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
+            self.active_modifier = random.choice(AVAILABLE_MODIFIERS)
+        else:
+            self.active_modifier = None
 
         # Teleport all existing players to the spawn point
         spawn_x, spawn_y = level.spawn
@@ -68,19 +66,14 @@ class Game_State:
         return f"world_size: {self.world_size}\nunits: {self.units}"
 
     def tick_timer(self, delta_time):
-        # delta_time is seconds; count DOWN from timer when started
-        if self.timer_started and self.timer > 0.0:
-            self.timer -= delta_time
-            if self.timer <= 0.0:
-                self.timer = 0.0
-                # Timer reached zero: spawn/show the door (only once)
-                if self.current_level and not self.doors:
-                    self.doors = [Door(self.current_level.door[0], self.current_level.door[1], False)]
+        if self.timer_started:
+            self.timer += delta_time
+        # Advance all warning countdowns
+        for warning in self.warnings:
+            warning.update(delta_time)
 
     def update(self, action):
-        # When the start button is pressed for the first time, begin the timer for the first level.
-        if action.is_start_game() and not self.started_once:
-            self.started_once = True
+        if action.is_start_game():
             self.timer_started = True
 
         name = action.get_name()
@@ -88,8 +81,6 @@ class Game_State:
             player = Player(self.world_size, name) # create a new player
             self.units.append(player)              # add to units
             self.players[name] = player            # add to players too for fast lookup by name 
-            # (Do NOT auto-start the timer here; first-level start is controlled by start button only)
-
         player = self.players[name]
         
         player.apply_action(action, self.current_modifiers)
@@ -112,20 +103,10 @@ class Game_State:
                 player.speed.y = 0
 
     def spawn_units(self):
-        # Update timer using real time delta (spawn_units is called every tick)
-        now_ms = pygame.time.get_ticks()
-        delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
-        self._last_tick_ms = now_ms
-        self.tick_timer(delta_ms / 1000.0)
+        diff = self.difficulty
 
-        # Update existing projectiles
-        for proj in self.projectiles:
-            proj.update(self.world_size)
-            
-        self.projectiles = [p for p in self.projectiles if not p.is_off_screen(self.world_size)]
-            
-        # Spawn projectiles occasionally
-        if random.random() < 0.03:
+        # ── Spawn new warnings ───────────────────────────────────────────────
+        if random.random() < diff.spawn_chance:
             size = random.randint(10, 40)
             edge = random.choice(["top", "left", "right"])
             if edge == "top":
@@ -143,8 +124,30 @@ class Game_State:
                 y = random.randint(0, int(self.world_size.y) // 2)
                 speed_x = random.uniform(-6, -2)
                 speed_y = random.uniform(1, 4)
-            self.projectiles.append(Projectile((x, y), (speed_x, speed_y), size))
-        
+
+            self.warnings.append(ProjectileWarning(
+                spawn_pos    = (x, y),
+                base_speed   = (speed_x, speed_y),
+                size         = size,
+                warning_time = diff.warning_time,
+            ))
+
+        # ── Promote expired warnings to real projectiles ──────────────────────
+        still_waiting = []
+        for warning in self.warnings:
+            if warning.is_expired():
+                self.projectiles.append(
+                    warning.spawn_projectile(diff.projectile_speed_mult)
+                )
+            else:
+                still_waiting.append(warning)
+        self.warnings = still_waiting
+
+        # ── Update active projectiles ─────────────────────────────────────────
+        for proj in self.projectiles:
+            proj.update(self.world_size)
+        self.projectiles = [p for p in self.projectiles if not p.is_off_screen(self.world_size)]
+            
     def draw(self, name, surface, name_textures):
         rect = pygame.Rect(pygame.Vector2(0, 0), self.world_size)
         white = (255, 255, 255)
@@ -155,9 +158,46 @@ class Game_State:
 
         for door in self.doors:
             door.draw(surface)
+
+        # Draw warning indicators on the screen edge
+        for warning in self.warnings:
+            warning.draw(surface, self.world_size)
             
         for proj in self.projectiles:
             proj.draw(surface)
             
         for unit in self.units:
             unit.draw(surface, name_textures)
+
+        # ── Active modifier HUD badge ─────────────────────────────────────────
+        if self.active_modifier is not None:
+            self._draw_modifier_badge(surface, self.active_modifier)
+
+    def _draw_modifier_badge(self, surface, modifier):
+        """Draw a small coloured badge in the top-left corner showing the active modifier."""
+        padding   = 8
+        badge_x   = 10
+        badge_y   = 10
+
+        font_big   = pygame.font.SysFont("Comic Sans MS", 18)
+        font_small = pygame.font.SysFont("Comic Sans MS", 13)
+
+        label_surf = font_big.render(modifier.name, True, (255, 255, 255))
+        desc_surf  = font_small.render(modifier.description, True, (220, 220, 220))
+
+        badge_w = max(label_surf.get_width(), desc_surf.get_width()) + padding * 2
+        badge_h = label_surf.get_height() + desc_surf.get_height() + padding * 2 + 4
+
+        badge_rect = pygame.Rect(badge_x, badge_y, badge_w, badge_h)
+
+        # Background fill with the modifier's colour
+        bg_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
+        bg_surf.fill((*modifier.color, 200))  # semi-transparent
+        surface.blit(bg_surf, (badge_x, badge_y))
+
+        # Thin white border
+        pygame.draw.rect(surface, (255, 255, 255), badge_rect, 1)
+
+        # Text
+        surface.blit(label_surf, (badge_x + padding, badge_y + padding))
+        surface.blit(desc_surf,  (badge_x + padding, badge_y + padding + label_surf.get_height() + 4))
