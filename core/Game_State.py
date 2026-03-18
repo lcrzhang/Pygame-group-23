@@ -33,7 +33,7 @@ class Game_State:
         self.active_modifier = None  # LevelModifier | None
 
         # track time between spawn_units ticks for countdown
-        self._last_tick_ms = pygame.time.get_ticks()
+        self._last_tick_ms = time.time() * 1000.0
 
         self.load_level()
 
@@ -63,7 +63,7 @@ class Game_State:
         self.timer = 60.0
         self.timer_started = True
         # reset last-tick so the first tick doesn't consume a large delta
-        self._last_tick_ms = pygame.time.get_ticks()
+        self._last_tick_ms = time.time() * 1000.0
 
         # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
         if self.levels_played > MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
@@ -175,14 +175,11 @@ class Game_State:
                     player.speed.y = 0
 
     def spawn_units(self):
-        """Called regularly by server tick; update timers, projectiles and warnings."""
-        now_ms = pygame.time.get_ticks()
+        """Called regularly by server tick; update projectiles and warnings."""
+        now_ms = time.time() * 1000.0
         delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
         self._last_tick_ms = now_ms
         delta_s = max(0.0, delta_ms / 1000.0)
-
-        # advance timer
-        self.tick_timer(delta_s)
 
         # Update existing projectiles
         for proj in list(self.projectiles):
@@ -192,12 +189,13 @@ class Game_State:
         # Spawn pending projectile warnings
         for w in list(self.warnings):
             w.update(delta_s)
-            if w.ready_to_spawn():
-                self.projectiles.append(w.spawn_projectile())
+            if w.is_expired():
+                self.projectiles.append(w.spawn_projectile(speed_mult=self.difficulty.projectile_speed_mult))
                 self.warnings.remove(w)
 
-        # occasional random projectiles (keep existing behavior if used elsewhere)
-        if random.random() < 0.03:
+        # random projectiles (warnings) based on time and difficulty
+        chance_this_tick = self.difficulty.spawn_rate_per_sec * delta_s
+        if random.random() < chance_this_tick:
             size = random.randint(10, 40)
             edge = random.choice(["top", "left", "right"])
             if edge == "top":
@@ -215,7 +213,14 @@ class Game_State:
                 y = random.randint(0, int(self.world_size.y) // 2)
                 speed_x = random.uniform(-6, -2)
                 speed_y = random.uniform(1, 4)
-            self.projectiles.append(Projectile((x, y), (speed_x, speed_y), size))
+            
+            warning = ProjectileWarning(
+                spawn_pos=(x, y),
+                base_speed=(speed_x, speed_y),
+                size=size,
+                warning_time=self.difficulty.warning_time
+            )
+            self.warnings.append(warning)
 
     def draw(self, name, surface, name_textures):
         rect = pygame.Rect(pygame.Vector2(0, 0), self.world_size)

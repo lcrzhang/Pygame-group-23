@@ -45,13 +45,13 @@ class DifficultySettings:
         return max(0.2, 1.0 - reduction)
 
     @property
-    def spawn_chance(self) -> float:
+    def spawn_rate_per_sec(self) -> float:
         """
-        Per-frame probability that a new ProjectileWarning is created.
+        Expected number of ProjectileWarnings created per second.
 
-        Starts at 3 % and grows by 0.3 % per level, capped at 8 %.
+        Starts at 1.0/sec and grows by 0.2/sec per level, capped at 3.5/sec.
         """
-        return min(0.08, 0.03 + self.levels_played * 0.003)
+        return min(3.5, 1.0 + self.levels_played * 0.2)
 
     @property
     def projectile_speed_mult(self) -> float:
