@@ -40,9 +40,13 @@ class Game_State:
     def load_level(self, index=None):
         """Load a hand-crafted level. Pass an index, or None for random."""
         if index is None:
-            # Pick randomly, but avoid repeating the same level twice in a row
-            choices = [i for i in range(len(LEVELS)) if i != self.current_level_index]
-            index = random.choice(choices) if choices else 0
+            if self.levels_played < len(LEVELS):
+                # Pick sequentially for the first playthrough
+                index = self.levels_played
+            else:
+                # Pick randomly, but avoid repeating the same level twice in a row
+                choices = [i for i in range(len(LEVELS)) if i != self.current_level_index]
+                index = random.choice(choices) if choices else 0
         self.current_level_index = index
         level = LEVELS[index]
         self.current_level = level
@@ -143,36 +147,50 @@ class Game_State:
                     self.load_level()
                 break
                 
-        # Check projectile collisions
-        for proj in list(self.projectiles):
-            if player_rect.colliderect(proj.get_rect()):
-                # Hit by a projectile: remove the projectile, deal damage and reset player position
-                try:
-                    self.projectiles.remove(proj)
-                except ValueError:
-                    pass
-                player.take_damage(1)
+        hurt_player = False
 
-                # If player's health reached zero -> game over (do not respawn)
-                if player.health <= 0:
-                    self.game_over = True
-                    # record how many levels the player completed (at least 1)
-                    self.game_over_achieved_levels = max(1, self.levels_played)
-                    # stop hazards/timer
-                    self.timer_started = False
-                    self.projectiles.clear()
-                    self.warnings.clear()
-                else:
-                    # Respawn at the current level's spawn point (fallback to center)
+        # Check kill zone collisions
+        if hasattr(self.current_level, "kill_zones") and self.current_level.kill_zones:
+            for kz in self.current_level.kill_zones:
+                if player_rect.colliderect(pygame.Rect(*kz)):
+                    hurt_player = True
+                    break
+                
+        # Check projectile collisions
+        if not hurt_player:
+            for proj in list(self.projectiles):
+                if player_rect.colliderect(proj.get_rect()):
+                    # Hit by a projectile: remove the projectile
                     try:
-                        sx, sy = self.current_level.spawn
-                    except Exception:
-                        # fallback positions if no current level set
-                        sx = int(self.world_size.x // 2) if hasattr(self.world_size, "x") else int(self.world_size[0] // 2)
-                        sy = 50
-                    player.position.x = int(sx)
-                    player.position.y = int(sy)
-                    player.speed.y = 0
+                        self.projectiles.remove(proj)
+                    except ValueError:
+                        pass
+                    hurt_player = True
+                    break
+
+        if hurt_player:
+            player.take_damage(1)
+
+            # If player's health reached zero -> game over (do not respawn)
+            if player.health <= 0:
+                self.game_over = True
+                # record how many levels the player completed (at least 1)
+                self.game_over_achieved_levels = max(1, self.levels_played)
+                # stop hazards/timer
+                self.timer_started = False
+                self.projectiles.clear()
+                self.warnings.clear()
+            else:
+                # Respawn at the current level's spawn point (fallback to center)
+                try:
+                    sx, sy = self.current_level.spawn
+                except Exception:
+                    # fallback positions if no current level set
+                    sx = int(self.world_size.x // 2) if hasattr(self.world_size, "x") else int(self.world_size[0] // 2)
+                    sy = 50
+                player.position.x = int(sx)
+                player.position.y = int(sy)
+                player.speed.y = 0
 
     def spawn_units(self):
         """Called regularly by server tick; update projectiles and warnings."""

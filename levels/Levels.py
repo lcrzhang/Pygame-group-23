@@ -86,6 +86,9 @@ class Level:
     # If None or empty the Projectile class falls back to coloured shapes.
     projectile_images: Optional[List[str]] = None
 
+    # Optional rects that represent instant kill zones (x, y, w, h)
+    kill_zones: List[Tuple[int, int, int, int]] = field(default_factory=list)
+
     # Per-level player physics modifiers
     modifiers:  PlayerModifiers = field(default_factory=PlayerModifiers)
     
@@ -166,4 +169,34 @@ LEVEL_3 = Level(
     world_size=(1600, 1200),    # 2x width, 2x height
 )
 
-LEVELS = [LEVEL_1, LEVEL_2, LEVEL_3]
+LEVEL_4 = Level(
+    name="Icy Spikes",
+    platforms=[
+        # Left spawn platform
+        (100, 800, 300, 20),
+        # Platform higher up
+        (500, 600, 300, 20),
+        # Lower middle platform
+        (900, 850, 300, 20),
+        # Platform higher again
+        (1300, 650, 300, 20),
+        # Door platform
+        (1600, 800, 250, 20)
+    ],
+    kill_zones=[
+        # Spikes along the bottom over the entire 1920 map width
+        (0, 1000, 1920, 80)
+    ],
+    door=(1700, 720),
+    spawn=(150, 700),
+    theme="ice",
+    background="images/Level4/ice_bg.png",
+    projectile_images=["images/Level4/icy_spike.png"],
+    modifiers=PlayerModifiers(
+        friction=0.99,       # Very slippery map
+        acceleration=0.3,    # Difficult to accelerate (ice)
+    ),
+    world_size=(1920, 1080)
+)
+
+LEVELS = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4]
