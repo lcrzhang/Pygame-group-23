@@ -236,7 +236,8 @@ class Game_State:
                 spawn_pos=(x, y),
                 base_speed=(speed_x, speed_y),
                 size=size,
-                warning_time=self.difficulty.warning_time
+                warning_time=self.difficulty.warning_time,
+                projectile_images=getattr(self.current_level, "projectile_images", None)
             )
             self.warnings.append(warning)
 
