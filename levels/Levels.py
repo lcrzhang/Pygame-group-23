@@ -93,7 +93,7 @@ class Level:
     modifiers:  PlayerModifiers = field(default_factory=PlayerModifiers)
     
     # Size of the level surface
-    world_size: Tuple[int, int] = (800, 600)
+    world_size: Tuple[int, int] = (1920, 1080)
 
 
 # ---------------------------------------------------------------------------
@@ -104,14 +104,14 @@ LEVEL_1 = Level(
     name="The Beginning",
     platforms=[
         # Ground
-        (0,   560, 800, 40),
+        (0,   1000, 1920, 80),
         # Staircase going up-right
         (100, 450, 130, 20),
         (260, 350, 130, 20),
         (420, 250, 130, 20),
         (580, 150, 130, 20),
     ],
-    door=(740, 480),
+    door=(1900, 920),
     spawn=(20, 515),
     background="images/Level1/level1_bg.png",
     theme="default",
@@ -128,7 +128,7 @@ LEVEL_2 = Level(
     name="Red Cave",
     platforms=[
         # Ground
-        (0,   560, 800, 40),
+        (0,   1000, 1920, 80),
         # Left pillar platforms
         (50,  430, 120, 20),
         (50,  300, 120, 20),
@@ -138,10 +138,11 @@ LEVEL_2 = Level(
         (600, 320, 120, 20),
         (600, 440, 120, 20),
     ],
-    door=(740, 480),
+    door=(1900, 920),
     spawn=(20, 515),
     background=(40, 15, 15),   # dark red
     theme="cave",
+    world_size=(1920, 1080),
     # Example: low-gravity cave level — floatier jumps, slower falling
     modifiers=PlayerModifiers(
         gravity=0.25,
@@ -155,18 +156,19 @@ LEVEL_2 = Level(
 LEVEL_3 = Level(
     name="Forest High",
     platforms=[
-        (0,   1160, 1600, 40),  # extra wide and deep floor
+        # Ground
+        (0,   1000, 1920, 80),
         (100, 1000, 150,  20),
         (350, 850,  150,  20),
         (600, 700,  150,  20),
         (900, 550,  200,  20),
         (1200,400,  150,  20),
     ],
-    door=(1400, 320),
+    door=(1900, 920),
     spawn=(50, 1115),
     background=(20, 50, 20),    # dark green
     theme="forest",
-    world_size=(1600, 1200),    # 2x width, 2x height
+    world_size=(1920, 1080),    # 2x width, 2x height
 )
 
 LEVEL_4 = Level(
