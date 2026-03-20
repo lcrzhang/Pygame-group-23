@@ -138,6 +138,17 @@ LEVEL_1 = Level(
         (910, 800, 100, 20), #center under
         (260, 700, 200, 20), #left middle
         (1460, 700, 200, 20), #right middle
+        (710, 550, 100, 20), #center middle left
+        (1110, 550, 100, 20), #center middle right
+        (810, 700, 100, 20), #middle block left
+        (1010, 700, 100, 20), #middle block right
+        (810, 400, 300, 20), #top middle
+        (510, 300, 100, 20), #top middle left
+        (1300, 300, 100, 20), #top middle right
+        (200, 400, 200, 20), #left upper
+        (1520, 400, 200, 20), #right upper
+        (0, 500, 100, 20), #left upper under
+        (1820, 500, 100, 20), #right upper under
     ],
     door=(1900, 920),
     spawn=(20, 515),
