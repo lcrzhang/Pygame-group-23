@@ -1,6 +1,8 @@
 import sys
 import zmq
 import pygame
+import os
+from SoundManager import SoundManager
 
 from core.Action import Action
 from core.Game_State import Game_State
@@ -33,6 +35,22 @@ def main(name, port, host):
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
     
+    # sound manager (optional)
+    try:
+        sound_mgr = SoundManager()
+    except Exception:
+        sound_mgr = None
+
+    def _find_first_music(folder):
+        try:
+            for ext in (".ogg", ".mp3", ".wav", ".flac"):
+                for f in os.listdir(folder):
+                    if f.lower().endswith(ext):
+                        return os.path.join(folder, f)
+        except Exception:
+            return None
+        return None
+    
     running = True
     play_again_clicked = False
     while running:
@@ -42,6 +60,14 @@ def main(name, port, host):
             if not started and event.type == pygame.KEYDOWN:
                 started = True
                 just_started = True
+                # play background music from the sounds folder when game starts
+                try:
+                    if sound_mgr is not None:
+                        music_path = _find_first_music(sound_mgr.sounds_dir)
+                        if music_path:
+                            sound_mgr.play_music(music_path, loops=-1, volume=0.5)
+                except Exception:
+                    pass
             # If game over, allow clicking the Play Again button (convert mouse to game coords)
             if event.type == pygame.MOUSEBUTTONDOWN and game_state and getattr(game_state, "game_over", False):
                 mx, my = event.pos
