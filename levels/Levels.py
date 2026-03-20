@@ -155,18 +155,24 @@ LEVEL_2 = Level(
     platforms=[
         # Ground
         (0,   1000, 1920, 80),
-        # Left pillar platforms
-        (50,  430, 120, 20),
-        (50,  300, 120, 20),
-        # Gap in the middle, high bridge
-        (250, 200, 300, 20),
+        # Left pillar platforms (zigzag up)
+        (150, 850, 120, 20),
+        (50,  700, 120, 20),
+        (180, 550, 120, 20),
+        (50,  400, 120, 20),
+        # Middle bridge
+        (250, 250, 400, 20),
         # Right descent
-        (600, 320, 120, 20),
-        (600, 440, 120, 20),
+        (750, 350, 150, 20),
+        (950, 450, 150, 20),
+        (1200, 550, 150, 20),
+        (1450, 650, 150, 20),
+        (1700, 750, 150, 20),
     ],
-    door=(1900, 920),
-    spawn=(20, 515),
-    background=(40, 15, 15),   # dark red
+    door=(1750, 670),
+    spawn=(50, 900),
+    background="images/Level2/cavebackground.jpg",  # dark red
+    projectile_images=["images/Level2/image-removebg-preview.png"],
     theme="cave",
     world_size=(1920, 1080),
     # Example: low-gravity cave level — floatier jumps, slower falling
@@ -184,15 +190,31 @@ LEVEL_3 = Level(
     platforms=[
         # Ground
         (0,   1000, 1920, 80),
-        (100, 1000, 150,  20),
-        (350, 850,  150,  20),
-        (600, 700,  150,  20),
-        (900, 550,  200,  20),
-        (1200,400,  150,  20),
+        
+        # Bottom center
+        (900, 900,  120, 20),
+        # Lower section
+        (650, 860,  120, 20),
+        (1150, 860, 120, 20),
+        (467, 750,  120, 20),
+        (1333, 750, 120, 20),
+        # Middle section
+        (400, 600,  120, 20),
+        (1400, 600, 120, 20),
+        # True Center
+        (900, 600,  120, 20),
+        # Upper section
+        (467, 450,  120, 20),
+        (1333, 450, 120, 20),
+        (650, 340,  120, 20),
+        (1150, 340, 120, 20),
+        # Top center
+        (900, 300,  120, 20),
     ],
-    door=(1900, 920),
-    spawn=(20, 515),
-    background=(20, 50, 20),    # dark green
+    door=(950, 220),
+    spawn=(940, 960),
+    background="images/Level3/forestbg.jpg",    # dark green
+    projectile_images=["images/Level3/banana.png"],
     theme="forest",
     world_size=(1920, 1080),    # 2x width, 2x height
 )
