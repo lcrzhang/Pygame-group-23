@@ -101,7 +101,7 @@ class Player:
         for platform in platforms:
             if player_rect.colliderect(platform.rect):
                 # Treat the bottom-most platform (the “floor”) as solid even when holding down.
-                is_floor = platform.rect.top >= world_size.y - Player.height
+                is_floor = platform.rect.bottom >= world_size.y
                 if self.speed.y > 0 and prev_bottom <= platform.rect.top and (not drop_through or is_floor): # Falling down
                     player_rect.bottom = platform.rect.top
                     self.position.y = player_rect.y
