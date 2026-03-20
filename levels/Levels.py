@@ -136,8 +136,8 @@ LEVEL_1 = Level(
         (0,   1000, 1920, 80), #Ground
         (100,  900, 100, 20), #left under
         (1770, 900, 100, 20), #right under
-        (560, 980, 100, 20), #center left under
-        (1260, 980, 100, 20), #center right under
+        (560, 900, 100, 20), #center left under
+        (1260, 900, 100, 20), #center right under
         (910, 800, 100, 20), #center under
         (260, 700, 200, 20), #left middle
         (1460, 700, 200, 20), #right middle
