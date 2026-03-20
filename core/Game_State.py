@@ -7,7 +7,7 @@ from entities.Platform import Platform
 
 from entities.Door import Door
 from entities.Projectile import Projectile, ProjectileWarning
-from levels.Levels import LEVELS, AVAILABLE_MODIFIERS
+from levels.Levels import LEVELS, AVAILABLE_MODIFIERS, LOBBY_LEVEL
 from core.Difficulty import DifficultySettings, MODIFIER_UNLOCK_LEVEL, MODIFIER_CHANCE
 
 class Game_State:
@@ -35,20 +35,27 @@ class Game_State:
         # track time between spawn_units ticks for countdown
         self._last_tick_ms = time.time() * 1000.0
 
-        self.load_level()
+        self.in_lobby = True
+        self.load_level(is_lobby=True)
 
-    def load_level(self, index=None):
+    def load_level(self, index=None, is_lobby=False):
         """Load a hand-crafted level. Pass an index, or None for random."""
-        if index is None:
-            if self.levels_played < len(LEVELS):
-                # Pick sequentially for the first playthrough
-                index = self.levels_played
-            else:
-                # Pick randomly, but avoid repeating the same level twice in a row
-                choices = [i for i in range(len(LEVELS)) if i != self.current_level_index]
-                index = random.choice(choices) if choices else 0
-        self.current_level_index = index
-        level = LEVELS[index]
+        if is_lobby:
+            self.current_level_index = -1
+            level = LOBBY_LEVEL
+            self.levels_played = 0
+            self.in_lobby = True
+        else:
+            if index is None:
+                if self.levels_played < len(LEVELS):
+                    # Pick sequentially for the first playthrough
+                    index = self.levels_played
+                else:
+                    # Pick randomly, but avoid repeating the same level twice in a row
+                    choices = [i for i in range(len(LEVELS)) if i != self.current_level_index]
+                    index = random.choice(choices) if choices else 0
+            self.current_level_index = index
+            level = LEVELS[index]
         self.current_level = level
         self.world_size = pygame.Vector2(level.world_size)
 
@@ -60,14 +67,19 @@ class Game_State:
         self.current_modifiers = level.modifiers  # per-level physics
 
         # Increment difficulty
-        self.levels_played += 1
+        if not getattr(self, "in_lobby", False):
+            self.levels_played += 1
         self.difficulty = DifficultySettings(self.levels_played)
 
         # Reset and START the countdown at 1 minute (60 seconds) when entering a level
         self.timer = 60.0
-        self.timer_started = True
+        self.timer_started = not getattr(self, "in_lobby", False)
         # reset last-tick so the first tick doesn't consume a large delta
         self._last_tick_ms = time.time() * 1000.0
+
+        # Spawn door immediately if we are in the lobby
+        if getattr(self, "in_lobby", False):
+            self.doors = [Door(level.door[0], level.door[1], False)]
 
         # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
         if self.levels_played > MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
@@ -106,15 +118,16 @@ class Game_State:
             # reset players health and state
             for p in self.players.values():
                 p.health = Player.max_health
-            # reset progression / counters so the next run starts at level 1
+                p.is_ready = False
+            # reset progression / counters backwards to lobby
             self.game_over = False
             self.game_over_achieved_levels = 0
             self.levels_played = 0
             self.current_level_index = -1
             self.difficulty = DifficultySettings(0)
             self.active_modifier = None
-            # load first level and return early
-            self.load_level(index=0)
+            self.in_lobby = True
+            self.load_level(is_lobby=True)
             return
 
         if action.is_start_game():
@@ -128,22 +141,43 @@ class Game_State:
         name = action.get_name()
         if not name in self.players: # if the name is not seen before
             player = Player(self.world_size, name) # create a new player
+            player.is_ready = False
+            if not getattr(self, "in_lobby", False):
+                # Joined mid-game -> start as spectator
+                player.health = 0
             self.units.append(player)              # add to units
             self.players[name] = player            # add to players too for fast lookup by name 
         player = self.players[name]
         
+        # Don't apply actions if in lobby and marked as ready
+        if getattr(player, "is_ready", False) and getattr(self, "in_lobby", False):
+            return
+
         player.apply_action(action, self.current_modifiers)
         player.update(self.platforms, self.world_size, self.current_modifiers)
+        
+        # Spectators don't interact with the world, but can move as ghosts
+        if player.health <= 0 and not getattr(self, "in_lobby", False):
+            return
         
         # Check door collisions
         player_rect = pygame.Rect(player.position.x, player.position.y, Player.width, Player.height)
         for door in self.doors:
             if player_rect.colliderect(door.rect):
-                # If we're in the welcome screen, entering the door should start the first level (index 0).
-                if getattr(self, "in_welcome", False):
-                    self.load_level(index=0)  # this will reset & start the 60s timer
+                if getattr(self, "in_lobby", False):
+                    player.is_ready = True
+                    player.position.y = -1000 # Teleport away visually
+                    player.speed.y = 0
+                    
+                    # Check if everyone is ready (all active players connected have is_ready)
+                    if all(p.is_ready for p in self.players.values()):
+                        self.in_lobby = False
+                        for p in self.players.values():
+                            p.is_ready = False
+                            p.health = Player.max_health # revive mid-lobby spectators if needed
+                        self.load_level(index=0)
                 else:
-                    # Trigger a new random level and teleport everyone; timer restarts in load_level
+                    # Trigger a new sequential/random level and teleport everyone
                     self.load_level()
                 break
                 
@@ -171,15 +205,16 @@ class Game_State:
         if hurt_player:
             player.take_damage(1)
 
-            # If player's health reached zero -> game over (do not respawn)
             if player.health <= 0:
-                self.game_over = True
-                # record how many levels the player completed (at least 1)
-                self.game_over_achieved_levels = max(1, self.levels_played)
-                # stop hazards/timer
-                self.timer_started = False
-                self.projectiles.clear()
-                self.warnings.clear()
+                # Player died. Check if *everyone* is dead.
+                if all(p.health <= 0 for p in self.players.values()):
+                    self.game_over = True
+                    # record how many levels the player completed (at least 1)
+                    self.game_over_achieved_levels = max(1, self.levels_played)
+                    # stop hazards/timer
+                    self.timer_started = False
+                    self.projectiles.clear()
+                    self.warnings.clear()
             else:
                 # Respawn at the current level's spawn point (fallback to center)
                 try:
@@ -198,6 +233,9 @@ class Game_State:
         delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
         self._last_tick_ms = now_ms
         delta_s = max(0.0, delta_ms / 1000.0)
+
+        if getattr(self, "in_lobby", False):
+            return
 
         # Update existing projectiles
         for proj in list(self.projectiles):
@@ -264,6 +302,15 @@ class Game_State:
             
         for unit in self.units:
             unit.draw(surface, name_textures)
+
+        # ── Lobby Instructions Text ───────────────────────────────────────────
+        if getattr(self, "current_level", None) and hasattr(self.current_level, "instructions") and self.current_level.instructions:
+            font = pygame.font.SysFont("Comic Sans MS", 28)
+            for i, line in enumerate(self.current_level.instructions):
+                text_surf = font.render(line, True, (255, 255, 255))
+                x = (surface.get_width() - text_surf.get_width()) // 2
+                y = 120 + i * 45
+                surface.blit(text_surf, (x, y))
 
         # ── Level Name Popup and Modifier HUD badge ───────────────────────────
         # Fading logic: show fully for 2 seconds, fade out over 1.5 seconds
