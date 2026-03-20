@@ -35,6 +35,7 @@ def main(name, port, host):
     # music volume (0.0..1.0)
     music_volume = 0.5
     MUSIC_VOL_STEP = 0.05
+    last_volume_change_ms = pygame.time.get_ticks()
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
     
@@ -76,10 +77,12 @@ def main(name, port, host):
                 try:
                     if event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                         music_volume = max(0.0, music_volume - MUSIC_VOL_STEP)
+                        last_volume_change_ms = pygame.time.get_ticks()
                         if sound_mgr is not None:
                             sound_mgr.set_music_volume(music_volume)
                     elif event.key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
                         music_volume = min(1.0, music_volume + MUSIC_VOL_STEP)
+                        last_volume_change_ms = pygame.time.get_ticks()
                         if sound_mgr is not None:
                             sound_mgr.set_music_volume(music_volume)
                 except Exception:
@@ -212,10 +215,16 @@ def main(name, port, host):
             # blit overlay onto game_surface (on top) BEFORE scaling so it becomes visible
             game_surface.blit(overlay, (0, 0))
 
-        # Volume HUD (top-left)
+        # Volume HUD (top-left) fading
         try:
-            vol_text = small_font.render(f"SOUND {int(music_volume*100)}%", True, (220,220,220))
-            game_surface.blit(vol_text, (10, 10))
+            vol_elapsed = pygame.time.get_ticks() - last_volume_change_ms
+            if vol_elapsed < 3000:
+                alpha = 255
+                if vol_elapsed > 2000:
+                    alpha = int(255 * (1.0 - (vol_elapsed - 2000) / 1000.0))
+                vol_text = small_font.render(f"SOUND {int(music_volume*100)}%", True, (220,220,220))
+                vol_text.set_alpha(alpha)
+                game_surface.blit(vol_text, (10, 10))
         except Exception:
             pass
 

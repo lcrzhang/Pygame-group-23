@@ -121,7 +121,8 @@ LOBBY_LEVEL = Level(
         "Use Arrow Keys or WASD to move & jump.",
         "Everyone must enter the door to start.",
         "Dodge the dropping projectiles!",
-        "If you fall in spikes, you lose a life."
+        "If you fall in spikes, you lose a life.",
+        "Adjust volume with + and - keys."
     ]
 )
 
