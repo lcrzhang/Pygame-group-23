@@ -32,6 +32,9 @@ def main(name, port, host):
     game_state = None
     started = False
     just_started = False
+    # music volume (0.0..1.0)
+    music_volume = 0.5
+    MUSIC_VOL_STEP = 0.05
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
     
@@ -65,7 +68,20 @@ def main(name, port, host):
                     if sound_mgr is not None:
                         music_path = _find_first_music(sound_mgr.sounds_dir)
                         if music_path:
-                            sound_mgr.play_music(music_path, loops=-1, volume=0.5)
+                            sound_mgr.play_music(music_path, loops=-1, volume=music_volume)
+                except Exception:
+                    pass
+            # volume controls (global, works on start screen and in-game)
+            if event.type == pygame.KEYDOWN:
+                try:
+                    if event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+                        music_volume = max(0.0, music_volume - MUSIC_VOL_STEP)
+                        if sound_mgr is not None:
+                            sound_mgr.set_music_volume(music_volume)
+                    elif event.key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
+                        music_volume = min(1.0, music_volume + MUSIC_VOL_STEP)
+                        if sound_mgr is not None:
+                            sound_mgr.set_music_volume(music_volume)
                 except Exception:
                     pass
             # If game over, allow clicking the Play Again button (convert mouse to game coords)
@@ -195,6 +211,13 @@ def main(name, port, host):
             overlay.blit(btn_txt, btn_rect)
             # blit overlay onto game_surface (on top) BEFORE scaling so it becomes visible
             game_surface.blit(overlay, (0, 0))
+
+        # Volume HUD (top-left)
+        try:
+            vol_text = small_font.render(f"SOUND {int(music_volume*100)}%", True, (220,220,220))
+            game_surface.blit(vol_text, (10, 10))
+        except Exception:
+            pass
 
         # Scale the internal game surface to the window size with aspect ratio preserved.
         win_w, win_h = display.get_size()
