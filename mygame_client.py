@@ -16,12 +16,13 @@ def main(name, port, host):
 
     # start pygame
     pygame.init()
-    display = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
-    pygame.display.set_caption('mygame')
+    # Always open in 1920x1080 as requested
+    display = pygame.display.set_mode((1920, 1080), pygame.RESIZABLE)
+    pygame.display.set_caption('Dodge Box')
     surface = pygame.display.get_surface()
     
-    # Internal render target dimensions (will adjust to current level's world bounds)
-    game_w, game_h = 800, 600
+    # Internal render target dimensions
+    game_w, game_h = 1920, 1080
     game_surface = pygame.Surface((game_w, game_h))
     
     clock = pygame.time.Clock()
@@ -34,15 +35,21 @@ def main(name, port, host):
     just_started = False
     music_volume = 0.5
     MUSIC_VOL_STEP = 0.05
-    last_volume_change_ms = pygame.time.get_ticks()
+
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
     
     # Load Dodge Box specific font
     try:
-        title_font = pygame.font.Font(os.path.join("Fonts", "TypefaceMarioWorldPixelFilledRegular-rgVMx.ttf"), 90)
+        title_font = pygame.font.Font(os.path.join("Fonts", "TypefaceMarioWorldPixelFilledRegular-rgVMx.ttf"), 140)
     except Exception:
-        title_font = pygame.font.SysFont('Comic Sans MS', 90, bold=True)
+        title_font = pygame.font.SysFont('Comic Sans MS', 140, bold=True)
+    
+    try:
+        wooden_plate = pygame.image.load(os.path.join("images", "startscreen", "wooden_plate.png")).convert()
+        wooden_plate.set_colorkey((255, 255, 255))
+    except Exception:
+        wooden_plate = None
     
     # sound manager (optional)
     try:
@@ -97,73 +104,77 @@ def main(name, port, host):
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
                 mx, my = event.pos
                 win_w, win_h = display.get_size()
-                scale = min(win_w / game_w, win_h / game_h)
-                scaled_w = int(game_w * scale)
-                scaled_h = int(game_h * scale)
-                offset_x = (win_w - scaled_w) // 2
-                offset_y = (win_h - scaled_h) // 2
-                if offset_x <= mx <= offset_x + scaled_w and offset_y <= my <= offset_y + scaled_h:
-                    gx = int((mx - offset_x) / scale)
-                    gy = int((my - offset_y) / scale)
+                # Stretch scaling calculation (independent X and Y)
+                scale_x = win_w / game_w
+                scale_y = win_h / game_h
+                
+                gx = int(mx / scale_x)
+                gy = int(my / scale_y)
 
-                    if not started:
-                        if main_menu_state == "main":
-                            options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
-                            for i, opt in enumerate(options):
-                                by = 280 + i * 50
-                                if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 20 <= gy <= by + 20:
-                                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                                        if i == 0: started = True; just_started = True; play_bg_music()
-                                        elif i == 1: main_menu_state = "customize"; main_selected_index = 0
-                                        elif i == 2: main_menu_state = "settings"; main_selected_index = 0
-                                        elif i == 3: main_menu_state = "credits"; main_selected_index = 0
-                                        elif i == 4: running = False
-                                    elif event.type == pygame.MOUSEMOTION:
-                                        main_selected_index = i
-                        elif main_menu_state in ("settings", "customize", "credits", "language"):
-                            by = game_h - 80
-                            if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                if gx < 0: gx = 0
+                if gx >= game_w: gx = game_w - 1
+                if gy < 0: gy = 0
+                if gy >= game_h: gy = game_h - 1
+
+                if not started:
+                    if main_menu_state == "main":
+                        options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
+                        for i, opt in enumerate(options):
+                            # Adjusted for 1080p positioning
+                            by = 500 + i * 80
+                            if game_w // 2 - 300 <= gx <= game_w // 2 + 300 and by - 30 <= gy <= by + 30:
                                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                                    main_menu_state = "main"; main_selected_index = 0
+                                    if i == 0: started = True; just_started = True; play_bg_music()
+                                    elif i == 1: main_menu_state = "customize"; main_selected_index = 0
+                                    elif i == 2: main_menu_state = "settings"; main_selected_index = 0
+                                    elif i == 3: main_menu_state = "credits"; main_selected_index = 0
+                                    elif i == 4: running = False
                                 elif event.type == pygame.MOUSEMOTION:
-                                    main_selected_index = 0
-                            
-                            if main_menu_state == "customize" and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                                colors = [
-                                    (255, 105, 180), (255, 0, 0), (0, 0, 255),
-                                    (255, 255, 0), (0, 255, 0), (0, 0, 0), (255, 255, 255)
-                                ]
-                                box_w, box_h = 50, 50
-                                gap = 20
-                                total_w = len(colors) * box_w + (len(colors) - 1) * gap
-                                start_x = game_w // 2 - total_w // 2
-                                start_y = 250
-                                for idx, c_val in enumerate(colors):
-                                    bx = start_x + idx * (box_w + gap)
-                                    if bx <= gx < bx + box_w and start_y <= gy < start_y + box_h:
-                                        character_color = c_val
+                                    main_selected_index = i
+                    elif main_menu_state in ("settings", "customize", "credits", "language"):
+                        by = game_h - 150
+                        if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 40 <= gy <= by + 40:
+                            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                main_menu_state = "main"; main_selected_index = 0
+                            elif event.type == pygame.MOUSEMOTION:
+                                main_selected_index = 0
+                        
+                        if main_menu_state == "customize" and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            colors = [
+                                (255, 105, 180), (255, 0, 0), (0, 0, 255),
+                                (255, 255, 0), (0, 255, 0), (0, 0, 0), (255, 255, 255)
+                            ]
+                            box_w, box_h = 100, 100
+                            gap = 30
+                            total_w = len(colors) * box_w + (len(colors) - 1) * gap
+                            start_x = game_w // 2 - total_w // 2
+                            start_y = 500
+                            for idx, c_val in enumerate(colors):
+                                bx = start_x + idx * (box_w + gap)
+                                if bx <= gx < bx + box_w and start_y <= gy < start_y + box_h:
+                                    character_color = c_val
 
-                    elif started and game_state and not getattr(game_state, "game_over", False):
-                        if not in_pause_menu:
-                            pass
-                        else:
-                            if pause_menu_state == "main":
-                                for i, opt in enumerate(["Resume", "Settings", "Quit"]):
-                                    by = game_h // 2 + i * 50 - 50
-                                    if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
-                                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                                            if i == 0: in_pause_menu = False
-                                            elif i == 1: pause_menu_state = "settings"; pause_selected_index = 0
-                                            elif i == 2: in_pause_menu = False; started = False; just_started = False; game_state = None
-                                        elif event.type == pygame.MOUSEMOTION:
-                                            pause_selected_index = i
-                            elif pause_menu_state == "settings":
-                                by = game_h // 2 + 70
+                elif started and game_state and not getattr(game_state, "game_over", False):
+                    if not in_pause_menu:
+                        pass
+                    else:
+                        if pause_menu_state == "main":
+                            for i, opt in enumerate(["Resume", "Settings", "Quit"]):
+                                by = game_h // 2 + i * 50 - 50
                                 if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
                                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                                        pause_menu_state = "main"; pause_selected_index = 0
+                                        if i == 0: in_pause_menu = False
+                                        elif i == 1: pause_menu_state = "settings"; pause_selected_index = 0
+                                        elif i == 2: in_pause_menu = False; started = False; just_started = False; game_state = None
                                     elif event.type == pygame.MOUSEMOTION:
-                                        pause_selected_index = 0
+                                        pause_selected_index = i
+                        elif pause_menu_state == "settings":
+                            by = game_h // 2 + 70
+                            if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                    pause_menu_state = "main"; pause_selected_index = 0
+                                elif event.type == pygame.MOUSEMOTION:
+                                    pause_selected_index = 0
 
             # Handle Keyboard Input
             if started and event.type == pygame.KEYDOWN and game_state and not getattr(game_state, "game_over", False):
@@ -222,28 +233,23 @@ def main(name, port, host):
                 try:
                     if event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                         music_volume = max(0.0, music_volume - MUSIC_VOL_STEP)
-                        last_volume_change_ms = pygame.time.get_ticks()
                         if sound_mgr is not None:
                             sound_mgr.set_music_volume(music_volume)
                     elif event.key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
                         music_volume = min(1.0, music_volume + MUSIC_VOL_STEP)
-                        last_volume_change_ms = pygame.time.get_ticks()
                         if sound_mgr is not None:
                             sound_mgr.set_music_volume(music_volume)
                 except Exception:
                     pass
-            # If game over, allow clicking the Play Again button (convert mouse to game coords)
+            # If game over, allow clicking the Play Again button (stretch scaling)
             if event.type == pygame.MOUSEBUTTONDOWN and game_state and getattr(game_state, "game_over", False):
                 mx, my = event.pos
                 win_w, win_h = display.get_size()
-                scale = min(win_w / game_w, win_h / game_h)
-                scaled_w = int(game_w * scale)
-                scaled_h = int(game_h * scale)
-                offset_x = (win_w - scaled_w) // 2
-                offset_y = (win_h - scaled_h) // 2
-                if offset_x <= mx <= offset_x + scaled_w and offset_y <= my <= offset_y + scaled_h:
-                    gx = int((mx - offset_x) / scale)
-                    gy = int((my - offset_y) / scale)
+                scale_x = win_w / game_w
+                scale_y = win_h / game_h
+                if scale_x > 0 and scale_y > 0:
+                    gx = int(mx / scale_x)
+                    gy = int(my / scale_y)
                     # button location (must match drawing below)
                     btn_w, btn_h = 240, 50
                     btn_x = (game_w - btn_w) // 2
@@ -259,7 +265,7 @@ def main(name, port, host):
                 game_surface = pygame.Surface((game_w, game_h))
 
         # Always render to the internal surface, then scale to the current window size.
-        # This preserves aspect ratio and avoids stretching when the window is resized.
+        # This will fill the entire window (stretching if necessary) to remove black borders.
         game_surface.fill(background_color)
 
         if not started:
@@ -275,26 +281,27 @@ def main(name, port, host):
 
             if main_menu_state == "main":
                 if start_logo:
-                    logo_w = 105
+                    logo_w = 220
                     logo_h = int(start_logo.get_height() * (logo_w / start_logo.get_width()))
                     scaled_logo = pygame.transform.smoothscale(start_logo, (logo_w, logo_h))
-                    game_surface.blit(scaled_logo, (game_w // 2 - logo_w // 2, 30))
+                    game_surface.blit(scaled_logo, (game_w // 2 - logo_w // 2, 50))
                 
                 # Draw "Dodge Box" title
                 dodge_shadow = title_font.render("Dodge Box", True, (50, 50, 50))
-                game_surface.blit(dodge_shadow, dodge_shadow.get_rect(center=(game_w // 2 + 5, 175)))
+                game_surface.blit(dodge_shadow, dodge_shadow.get_rect(center=(game_w // 2 + 8, 308)))
                 
                 dodge_title = title_font.render("Dodge Box", True, (255, 255, 255))
-                game_surface.blit(dodge_title, dodge_title.get_rect(center=(game_w // 2, 170)))
+                game_surface.blit(dodge_title, dodge_title.get_rect(center=(game_w // 2, 300)))
 
                 options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
                 for i, opt in enumerate(options):
-                    color = (255, 255, 100) if i == main_selected_index else (220, 220, 220)
+                    bx, by = game_w // 2, 500 + i * 80
+                    color = (255, 255, 100) if i == main_selected_index else (255, 255, 255)
                     opt_surf = font.render(opt, True, color)
-                    game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, 280 + i * 50)))
+                    game_surface.blit(opt_surf, opt_surf.get_rect(center=(bx, by)))
             elif main_menu_state == "customize":
                 title_surf = small_font.render("Select Character Color", True, (255, 255, 255))
-                game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, 180)))
+                game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, 400)))
                 
                 colors = [
                     ((255, 105, 180), "Pink"),
@@ -306,51 +313,51 @@ def main(name, port, host):
                     ((255, 255, 255), "White")
                 ]
                 
-                box_w, box_h = 50, 50
-                gap = 20
+                box_w, box_h = 100, 100
+                gap = 30
                 total_w = len(colors) * box_w + (len(colors) - 1) * gap
                 start_x = game_w // 2 - total_w // 2
-                start_y = 250
+                start_y = 500
                 
                 for idx, (c_val, c_name) in enumerate(colors):
                     bx = start_x + idx * (box_w + gap)
                     rect = pygame.Rect(bx, start_y, box_w, box_h)
                     pygame.draw.rect(game_surface, c_val, rect)
                     if character_color == c_val:
-                        pygame.draw.rect(game_surface, (255, 255, 100), rect, 4) # highlight selected
+                        pygame.draw.rect(game_surface, (255, 255, 100), rect, 6) # highlight selected
                     else:
                         pygame.draw.rect(game_surface, (200, 200, 200), rect, 2)
                         
                 # Demo character preview
-                prev_rect = pygame.Rect(game_w // 2 - 20, 350, 40, 40)
-                pygame.draw.rect(game_surface, character_color, prev_rect, 4)
+                prev_rect = pygame.Rect(game_w // 2 - 50, 680, 100, 100)
+                pygame.draw.rect(game_surface, character_color, prev_rect, 8)
                 
-                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
                 opt_surf = font.render("Back", True, color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
 
             elif main_menu_state == "settings":
                 vol_text2 = pygame.font.SysFont("Comic Sans MS", 28).render(f"Music Volume: {int(music_volume*100)}%", True, (220, 220, 220))
                 game_surface.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 40)))
                 
-                slider_x = game_w // 2 - 150
+                slider_x = game_w // 2 - 300
                 slider_y = game_h // 2
-                slider_w = 300
-                pygame.draw.line(game_surface, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 8)
+                slider_w = 600
+                pygame.draw.line(game_surface, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
                 filled_w = int(music_volume * slider_w)
-                pygame.draw.line(game_surface, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 8)
-                pygame.draw.circle(game_surface, (255, 255, 100), (slider_x + filled_w, slider_y), 12)
+                pygame.draw.line(game_surface, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
+                pygame.draw.circle(game_surface, (255, 255, 100), (slider_x + filled_w, slider_y), 20)
 
-                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
                 opt_surf = font.render("Back", True, color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
             else:
                 msg = font.render(f"{main_menu_state.capitalize()} - Coming Soon!", True, (255, 255, 255))
                 game_surface.blit(msg, msg.get_rect(center=(game_w // 2, game_h // 2)))
 
-                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
                 opt_surf = font.render("Back", True, color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
         else:
             action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked, set_pause=in_pause_menu, color=character_color)
             just_started = False
@@ -408,7 +415,7 @@ def main(name, port, host):
                     background_cache.clear()
                     background_image = None
                     # reset internal render target to default
-                    game_w, game_h = 800, 600
+                    game_w, game_h = 1920, 1080
                     game_surface = pygame.Surface((game_w, game_h))
                     # drop server state locally so start screen shows
                     game_state = None
@@ -439,43 +446,28 @@ def main(name, port, host):
             # blit overlay onto game_surface (on top) BEFORE scaling so it becomes visible
             game_surface.blit(overlay, (0, 0))
 
-        # Volume HUD (top-left) fading
-        try:
-            vol_elapsed = pygame.time.get_ticks() - last_volume_change_ms
-            if vol_elapsed < 3000:
-                alpha = 255
-                if vol_elapsed > 2000:
-                    alpha = int(255 * (1.0 - (vol_elapsed - 2000) / 1000.0))
-                vol_text = small_font.render(f"SOUND {int(music_volume*100)}%", True, (220,220,220))
-                vol_text.set_alpha(alpha)
-                game_surface.blit(vol_text, (10, 10))
-        except Exception:
-            pass
 
-        # Handle Slider Dragging
+
+        # Handle Slider Dragging for full screen fill
         is_settings_open = (started and in_pause_menu and pause_menu_state == "settings") or (not started and main_menu_state == "settings")
         if is_settings_open and pygame.mouse.get_pressed()[0]:
             mx, my = pygame.mouse.get_pos()
             win_w, win_h = display.get_size()
-            scale = min(win_w / game_w, win_h / game_h)
-            if scale > 0:
-                scaled_w = int(game_w * scale)
-                scaled_h = int(game_h * scale)
-                offset_x = (win_w - scaled_w) // 2
-                offset_y = (win_h - scaled_h) // 2
-                if offset_x <= mx <= offset_x + scaled_w and offset_y <= my <= offset_y + scaled_h:
-                    gx = int((mx - offset_x) / scale)
-                    gy = int((my - offset_y) / scale)
-                    slider_x = game_w // 2 - 150
-                    slider_y = game_h // 2
-                    slider_w = 300
-                    if slider_x - 30 <= gx <= slider_x + slider_w + 30 and slider_y - 40 <= gy <= slider_y + 40:
-                        fraction = (gx - slider_x) / slider_w
-                        music_volume = max(0.0, min(1.0, fraction))
-                        try:
-                            if sound_mgr is not None: sound_mgr.set_music_volume(music_volume)
-                        except Exception:
-                            pass
+            scale_x = win_w / game_w
+            scale_y = win_h / game_h
+            if scale_x > 0 and scale_y > 0:
+                gx = int(mx / scale_x)
+                gy = int(my / scale_y)
+                slider_x = game_w // 2 - 300
+                slider_y = game_h // 2
+                slider_w = 600
+                if slider_x - 30 <= gx <= slider_x + slider_w + 30 and slider_y - 40 <= gy <= slider_y + 40:
+                    fraction = (gx - slider_x) / slider_w
+                    music_volume = max(0.0, min(1.0, fraction))
+                    try:
+                        if sound_mgr is not None: sound_mgr.set_music_volume(music_volume)
+                    except Exception:
+                        pass
 
 
         if in_pause_menu:
@@ -515,16 +507,10 @@ def main(name, port, host):
 
             game_surface.blit(pause_overlay, (0, 0))
 
-        # Scale the internal game surface to the window size with aspect ratio preserved.
+        # Stretch the internal game surface to fill the entire window as requested
         win_w, win_h = display.get_size()
-        scale = min(win_w / game_w, win_h / game_h)
-        scaled_w = int(game_w * scale)
-        scaled_h = int(game_h * scale)
-        scaled = pygame.transform.smoothscale(game_surface, (scaled_w, scaled_h))
-
-        # Center the scaled view w/ letterboxing/pillarboxing
-        surface.fill((0, 0, 0))
-        surface.blit(scaled, ((win_w - scaled_w) // 2, (win_h - scaled_h) // 2))
+        scaled = pygame.transform.smoothscale(game_surface, (win_w, win_h))
+        surface.blit(scaled, (0, 0))
 
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
