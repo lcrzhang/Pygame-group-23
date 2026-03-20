@@ -191,7 +191,7 @@ LEVEL_3 = Level(
         (1200,400,  150,  20),
     ],
     door=(1900, 920),
-    spawn=(50, 1115),
+    spawn=(20, 515),
     background=(20, 50, 20),    # dark green
     theme="forest",
     world_size=(1920, 1080),    # 2x width, 2x height
