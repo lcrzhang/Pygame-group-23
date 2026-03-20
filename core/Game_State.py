@@ -83,9 +83,18 @@ class Game_State:
             self.doors = [Door(level.door[0], level.door[1], False)]
 
         # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
-        if self.levels_played > MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
-            # ...existing modifier apply logic...
-            pass
+        if not is_lobby and self.levels_played >= MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
+            self.active_modifier = random.choice(AVAILABLE_MODIFIERS)
+            basis = level.modifiers
+            from levels.Levels import PlayerModifiers
+            self.current_modifiers = PlayerModifiers(
+                gravity=basis.gravity * self.active_modifier.gravity_mult,
+                gravity_hold=basis.gravity_hold * self.active_modifier.gravity_mult,
+                friction=basis.friction * self.active_modifier.friction_mult,
+                acceleration=basis.acceleration * self.active_modifier.speed_mult,
+                max_fall_speed=basis.max_fall_speed,
+                jump_speed=basis.jump_speed,
+            )
         else:
             self.active_modifier = None
 
@@ -135,6 +144,37 @@ class Game_State:
             # start_game signal is used elsewhere; do not auto-start the level timer here
             pass
 
+        # ── Debug shortcuts (only when game is running, not in lobby) ──────────
+        debug_cmd = getattr(action, "debug_command", None)
+        if debug_cmd and not getattr(self, "in_lobby", False):
+            if debug_cmd == "skip_timer":
+                # Set timer to 0 so the door spawns on this tick's tick_timer call
+                self.timer = 0.01
+            elif debug_cmd == "next_level":
+                self.load_level()
+                return
+            elif debug_cmd == "kill_player":
+                name = action.get_name()
+                if name in self.players:
+                    self.players[name].health = 0
+            elif debug_cmd.startswith("set_modifier:"):
+                mod_name = debug_cmd[len("set_modifier:"):]
+                from levels.Levels import AVAILABLE_MODIFIERS
+                for m in AVAILABLE_MODIFIERS:
+                    if m.name == mod_name:
+                        self.active_modifier = m
+                        basis = self.current_level.modifiers
+                        from levels.Levels import PlayerModifiers
+                        self.current_modifiers = PlayerModifiers(
+                            gravity=basis.gravity * m.gravity_mult,
+                            gravity_hold=basis.gravity_hold * m.gravity_mult,
+                            friction=basis.friction * m.friction_mult,
+                            acceleration=basis.acceleration * m.speed_mult,
+                            max_fall_speed=basis.max_fall_speed,
+                            jump_speed=basis.jump_speed,
+                        )
+                        break
+
         if action.get_set_pause() is not None:
             if len(self.players) <= 1:
                 self.is_paused = action.get_set_pause()
@@ -162,6 +202,9 @@ class Game_State:
             return
 
         player.apply_action(action, self.current_modifiers)
+        # Inverted controls modifier: flip horizontal speed delta if active
+        if self.active_modifier and getattr(self.active_modifier, "inverted_controls", False):
+            player.speed.x -= 2 * (action.is_right() - action.is_left()) * self.current_modifiers.acceleration
         player.update(self.platforms, self.world_size, self.current_modifiers)
         
         # Spectators don't interact with the world, but can move as ghosts
@@ -266,7 +309,19 @@ class Game_State:
             min_size = max(10, int(self.world_size.x * 0.02))
             max_size = max(min_size, int(self.world_size.x * 0.06))
             size = random.randint(min_size, max_size)
-            edge = random.choice(["top", "left", "right"])
+            
+            # Apply modifier overrides
+            size_mult = getattr(self.active_modifier, "projectile_size_mult", 1.0) if self.active_modifier else 1.0
+            size = max(5, int(size * size_mult))
+            
+            restrict_edge = getattr(self.active_modifier, "restrict_spawn_edge", None) if self.active_modifier else None
+            if restrict_edge == "top":
+                edge_choices = ["top"]
+            elif restrict_edge == "sides":
+                edge_choices = ["left", "right"]
+            else:
+                edge_choices = ["top", "left", "right"]
+            edge = random.choice(edge_choices)
             if edge == "top":
                 x = random.randint(0, int(self.world_size.x))
                 y = -size - 5
@@ -283,6 +338,11 @@ class Game_State:
                 speed_x = random.uniform(-6, -2)
                 speed_y = random.uniform(1, 4)
             
+            # Apply projectile speed modifier
+            p_speed_mult = getattr(self.active_modifier, "projectile_speed_mult", 1.0) if self.active_modifier else 1.0
+            speed_x *= p_speed_mult
+            speed_y *= p_speed_mult
+
             warning = ProjectileWarning(
                 spawn_pos=(x, y),
                 base_speed=(speed_x, speed_y),
@@ -417,31 +477,23 @@ class Game_State:
         surface.blit(popup_surf, (x, y))
 
     def _draw_modifier_badge(self, surface, modifier, fade_alpha=255):
-        """Draw a small coloured badge in the top-left corner showing the active modifier."""
+        """Draw a small badge in the top-left corner showing the active modifier."""
         if fade_alpha <= 0: return
         
         padding   = 8
         badge_x   = 10
         badge_y   = 10
 
-        font_big   = pygame.font.SysFont("Comic Sans MS", 18)
-        font_small = pygame.font.SysFont("Comic Sans MS", 13)
+        font_big = pygame.font.SysFont("Comic Sans MS", 18, bold=True)
+        label_surf = font_big.render(f"⚠ {modifier.name}", True, (255, 255, 255))
 
-        label_surf = font_big.render(modifier.name, True, (255, 255, 255))
-        desc_surf  = font_small.render(modifier.description, True, (220, 220, 220))
-
-        badge_w = max(label_surf.get_width(), desc_surf.get_width()) + padding * 2
-        badge_h = label_surf.get_height() + desc_surf.get_height() + padding * 2 + 4
+        badge_w = label_surf.get_width() + padding * 2
+        badge_h = label_surf.get_height() + padding * 2
 
         badge_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
-        # Background fill with the modifier's colour (keep at 200/255 opacity max for readability)
-        badge_surf.fill((*modifier.color, 200))
-        # Thin white border
+        badge_surf.fill((180, 30, 30, 200))
         pygame.draw.rect(badge_surf, (255, 255, 255), badge_surf.get_rect(), 1)
-
-        # Text
         badge_surf.blit(label_surf, (padding, padding))
-        badge_surf.blit(desc_surf,  (padding, padding + label_surf.get_height() + 4))
 
         if fade_alpha < 255:
             badge_surf.set_alpha(fade_alpha)

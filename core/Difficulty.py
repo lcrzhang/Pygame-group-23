@@ -10,8 +10,8 @@ from dataclasses import dataclass
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-MODIFIER_UNLOCK_LEVEL = 2   # levels_played must exceed this before modifiers appear
-MODIFIER_CHANCE       = 0.5 # probability of a random modifier each level load
+MODIFIER_UNLOCK_LEVEL = 0   # levels_played must reach this before modifiers appear
+MODIFIER_CHANCE       = 1.0 # probability of a random modifier each level load
 
 
 # ── Difficulty settings (computed from levels_played) ────────────────────────

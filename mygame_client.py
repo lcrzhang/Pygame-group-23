@@ -89,13 +89,18 @@ def main(name, port, host):
     main_menu_state = "main" # main, customize, settings, credits, language
     main_selected_index = 0
     character_color = (255, 255, 255)
+    debug_command = None   # Set by F-key shortcuts each frame
 
     running = True
     play_again_clicked = False
     in_pause_menu = False
     pause_menu_state = "main" # main, settings
     pause_selected_index = 0
+    debug_command = None   # cleared each frame; set by F-key events
+    debug_toast_text = ""   # short-lived on-screen notification (F4 modifier cycle)
+    debug_toast_until = 0   # pygame ticks timestamp when toast expires
     while running:
+        debug_command = None   # Reset each frame so it only fires once
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -212,6 +217,27 @@ def main(name, port, host):
                                 pause_menu_state = "main"
                                 pause_selected_index = 0
 
+            # ── DEBUG shortcuts (F-keys, only while in-game) ────────────────
+            if started and event.type == pygame.KEYDOWN and game_state and not getattr(game_state, "game_over", False) and not getattr(game_state, "in_lobby", False):
+                if event.key == pygame.K_F1:
+                    debug_command = "skip_timer"   # Spawn the door immediately
+                elif event.key == pygame.K_F2:
+                    debug_command = "next_level"   # Skip directly to the next level
+                elif event.key == pygame.K_F3:
+                    debug_command = "kill_player"  # Kill your own player (test game-over)
+                elif event.key == pygame.K_F4:
+                    # Cycle through modifiers
+                    from levels.Levels import AVAILABLE_MODIFIERS
+                    if not hasattr(main, "_dbg_mod_idx"):
+                        main._dbg_mod_idx = 0
+                    mod = AVAILABLE_MODIFIERS[main._dbg_mod_idx % len(AVAILABLE_MODIFIERS)]
+                    debug_command = f"set_modifier:{mod.name}"
+                    debug_toast_text = f"[DEBUG] Modifier set to: {mod.name}"
+                    debug_toast_until = pygame.time.get_ticks() + 2500
+                    main._dbg_mod_idx += 1
+                else:
+                    debug_command = None
+            
             if not started and event.type == pygame.KEYDOWN:
                 options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"] if main_menu_state == "main" else ["Back"]
                 if event.key in (pygame.K_UP, pygame.K_w):
@@ -359,7 +385,7 @@ def main(name, port, host):
                 opt_surf = font.render("Back", True, color)
                 game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
         else:
-            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked, set_pause=in_pause_menu, color=character_color)
+            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked, set_pause=in_pause_menu, color=character_color, debug_command=debug_command)
             just_started = False
             socket.send_pyobj(action) # send action
              
@@ -507,7 +533,13 @@ def main(name, port, host):
 
             game_surface.blit(pause_overlay, (0, 0))
 
-        # Stretch the internal game surface to fill the entire window as requested
+        # ── Debug toast notification ──────────────────────────────────────────
+        if debug_toast_text and pygame.time.get_ticks() < debug_toast_until:
+            toast_font = pygame.font.SysFont("Comic Sans MS", 20, bold=True)
+            toast_surf = toast_font.render(debug_toast_text, True, (255, 240, 60))
+            game_surface.blit(toast_surf, (game_w // 2 - toast_surf.get_width() // 2, game_h - 80))
+
+        # Stretch the internal game surface to fill the entire window
         win_w, win_h = display.get_size()
         scaled = pygame.transform.smoothscale(game_surface, (win_w, win_h))
         surface.blit(scaled, (0, 0))
@@ -515,14 +547,14 @@ def main(name, port, host):
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
 
-def get_action(name, keys, start_game=False, set_pause=None, color=(255, 255, 255)):
+def get_action(name, keys, start_game=False, set_pause=None, color=(255, 255, 255), debug_command=None):
     if set_pause:
-        return Action(name, False, False, False, False, start_game, set_pause, color)
+        return Action(name, False, False, False, False, start_game, set_pause, color, debug_command)
     left = keys[pygame.K_LEFT] or keys[pygame.K_a]
     right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
     jump = keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_SPACE]
     down = keys[pygame.K_DOWN] or keys[pygame.K_s]
-    return Action(name, left, right, jump, down, start_game, set_pause, color)
+    return Action(name, left, right, jump, down, start_game, set_pause, color, debug_command)
 
 class Name_Textures: # class to generate and store textures of user names
 
