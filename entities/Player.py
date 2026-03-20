@@ -3,11 +3,11 @@ import pygame
 class Player:
     width = 40
     height = 40
-    color = (255, 255, 255)
     max_health = 10
         
     def __init__(self, world_size, name):
         self.name = name
+        self.color = (255, 255, 255)
         self.position = pygame.Vector2(world_size.x // 2, world_size.y // 2)
         self.speed = pygame.Vector2(0, 0)
         self.on_ground = False
@@ -110,7 +110,7 @@ class Player:
 
     def draw(self, surface, name_textures):
         rect = pygame.Rect(self.position.x, self.position.y, Player.width, Player.height)
-        pygame.draw.rect(surface, Player.color, rect, 4)
+        pygame.draw.rect(surface, self.color, rect, 4)
         name_texture = name_textures.get_texture(self.name)
         text_offset = pygame.Vector2(name_texture.get_size())
         text_offset.x /= 2

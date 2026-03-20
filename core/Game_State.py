@@ -22,6 +22,7 @@ class Game_State:
         self.warnings = []          # ProjectileWarning objects waiting to spawn
         self.timer = 0.0
         self.timer_started = False
+        self.is_paused = False
 
         # Game over state
         self.game_over = False
@@ -100,7 +101,7 @@ class Game_State:
 
     def tick_timer(self, delta_time):
         """Advance countdown timer (delta_time in seconds). Spawn door when timer reaches 0."""
-        if not self.timer_started:
+        if not self.timer_started or getattr(self, "is_paused", False):
             return
         if self.timer <= 0.0:
             return
@@ -134,8 +135,14 @@ class Game_State:
             # start_game signal is used elsewhere; do not auto-start the level timer here
             pass
 
-        # if game is over ignore most inputs
-        if self.game_over:
+        if action.get_set_pause() is not None:
+            if len(self.players) <= 1:
+                self.is_paused = action.get_set_pause()
+            else:
+                self.is_paused = False
+
+        # if game is over or paused ignore most inputs
+        if self.game_over or getattr(self, "is_paused", False):
             return
 
         name = action.get_name()
@@ -148,6 +155,7 @@ class Game_State:
             self.units.append(player)              # add to units
             self.players[name] = player            # add to players too for fast lookup by name 
         player = self.players[name]
+        player.color = action.get_color()
         
         # Don't apply actions if in lobby and marked as ready
         if getattr(player, "is_ready", False) and getattr(self, "in_lobby", False):
@@ -232,6 +240,8 @@ class Game_State:
         now_ms = time.time() * 1000.0
         delta_ms = now_ms - getattr(self, "_last_tick_ms", now_ms)
         self._last_tick_ms = now_ms
+        if getattr(self, "is_paused", False):
+            return
         delta_s = max(0.0, delta_ms / 1000.0)
 
         if getattr(self, "in_lobby", False):

@@ -32,12 +32,17 @@ def main(name, port, host):
     game_state = None
     started = False
     just_started = False
-    # music volume (0.0..1.0)
     music_volume = 0.5
     MUSIC_VOL_STEP = 0.05
     last_volume_change_ms = pygame.time.get_ticks()
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
+    
+    # Load Dodge Box specific font
+    try:
+        title_font = pygame.font.Font(os.path.join("Fonts", "TypefaceMarioWorldPixelFilledRegular-rgVMx.ttf"), 90)
+    except Exception:
+        title_font = pygame.font.SysFont('Comic Sans MS', 90, bold=True)
     
     # sound manager (optional)
     try:
@@ -54,24 +59,164 @@ def main(name, port, host):
         except Exception:
             return None
         return None
-    
+
+    def play_bg_music():
+        # play background music from the sounds folder when game starts
+        try:
+            if sound_mgr is not None:
+                music_path = _find_first_music(sound_mgr.sounds_dir)
+                if music_path:
+                    sound_mgr.play_music(music_path, loops=-1, volume=music_volume)
+        except Exception:
+            pass
+
+    try:
+        start_bg = pygame.image.load(os.path.join("images", "startscreen", "background.png")).convert()
+    except Exception:
+        start_bg = None
+    try:
+        start_logo = pygame.image.load(os.path.join("images", "startscreen", "logo.png")).convert_alpha()
+    except Exception:
+        start_logo = None
+        
+    main_menu_state = "main" # main, customize, settings, credits, language
+    main_selected_index = 0
+    character_color = (255, 255, 255)
+
     running = True
     play_again_clicked = False
+    in_pause_menu = False
+    pause_menu_state = "main" # main, settings
+    pause_selected_index = 0
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+
+            # Handle Mouse Clicks & Hovers
+            if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
+                mx, my = event.pos
+                win_w, win_h = display.get_size()
+                scale = min(win_w / game_w, win_h / game_h)
+                scaled_w = int(game_w * scale)
+                scaled_h = int(game_h * scale)
+                offset_x = (win_w - scaled_w) // 2
+                offset_y = (win_h - scaled_h) // 2
+                if offset_x <= mx <= offset_x + scaled_w and offset_y <= my <= offset_y + scaled_h:
+                    gx = int((mx - offset_x) / scale)
+                    gy = int((my - offset_y) / scale)
+
+                    if not started:
+                        if main_menu_state == "main":
+                            options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
+                            for i, opt in enumerate(options):
+                                by = 280 + i * 50
+                                if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 20 <= gy <= by + 20:
+                                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                        if i == 0: started = True; just_started = True; play_bg_music()
+                                        elif i == 1: main_menu_state = "customize"; main_selected_index = 0
+                                        elif i == 2: main_menu_state = "settings"; main_selected_index = 0
+                                        elif i == 3: main_menu_state = "credits"; main_selected_index = 0
+                                        elif i == 4: running = False
+                                    elif event.type == pygame.MOUSEMOTION:
+                                        main_selected_index = i
+                        elif main_menu_state in ("settings", "customize", "credits", "language"):
+                            by = game_h - 80
+                            if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                    main_menu_state = "main"; main_selected_index = 0
+                                elif event.type == pygame.MOUSEMOTION:
+                                    main_selected_index = 0
+                            
+                            if main_menu_state == "customize" and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                colors = [
+                                    (255, 105, 180), (255, 0, 0), (0, 0, 255),
+                                    (255, 255, 0), (0, 255, 0), (0, 0, 0), (255, 255, 255)
+                                ]
+                                box_w, box_h = 50, 50
+                                gap = 20
+                                total_w = len(colors) * box_w + (len(colors) - 1) * gap
+                                start_x = game_w // 2 - total_w // 2
+                                start_y = 250
+                                for idx, c_val in enumerate(colors):
+                                    bx = start_x + idx * (box_w + gap)
+                                    if bx <= gx < bx + box_w and start_y <= gy < start_y + box_h:
+                                        character_color = c_val
+
+                    elif started and game_state and not getattr(game_state, "game_over", False):
+                        if not in_pause_menu:
+                            pass
+                        else:
+                            if pause_menu_state == "main":
+                                for i, opt in enumerate(["Resume", "Settings", "Quit"]):
+                                    by = game_h // 2 + i * 50 - 50
+                                    if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                            if i == 0: in_pause_menu = False
+                                            elif i == 1: pause_menu_state = "settings"; pause_selected_index = 0
+                                            elif i == 2: in_pause_menu = False; started = False; just_started = False; game_state = None
+                                        elif event.type == pygame.MOUSEMOTION:
+                                            pause_selected_index = i
+                            elif pause_menu_state == "settings":
+                                by = game_h // 2 + 70
+                                if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                        pause_menu_state = "main"; pause_selected_index = 0
+                                    elif event.type == pygame.MOUSEMOTION:
+                                        pause_selected_index = 0
+
+            # Handle Keyboard Input
+            if started and event.type == pygame.KEYDOWN and game_state and not getattr(game_state, "game_over", False):
+                if event.key == pygame.K_ESCAPE:
+                    if in_pause_menu:
+                        if pause_menu_state == "settings":
+                            pause_menu_state = "main"
+                            pause_selected_index = 0
+                        else:
+                            in_pause_menu = False
+                    else:
+                        in_pause_menu = True
+                        pause_menu_state = "main"
+                        pause_selected_index = 0
+                elif in_pause_menu:
+                    options = ["Resume", "Settings", "Quit"] if pause_menu_state == "main" else ["Back"]
+                    if event.key in (pygame.K_UP, pygame.K_w):
+                        pause_selected_index = (pause_selected_index - 1) % len(options)
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        pause_selected_index = (pause_selected_index + 1) % len(options)
+                    elif event.key == pygame.K_RETURN:
+                        if pause_menu_state == "main":
+                            if pause_selected_index == 0: # Resume
+                                in_pause_menu = False
+                            elif pause_selected_index == 1: # Settings
+                                pause_menu_state = "settings"
+                                pause_selected_index = 0
+                            elif pause_selected_index == 2: # Quit
+                                in_pause_menu = False
+                                started = False
+                                just_started = False
+                                game_state = None
+                        elif pause_menu_state == "settings":
+                            if pause_selected_index == 0: # Back
+                                pause_menu_state = "main"
+                                pause_selected_index = 0
+
             if not started and event.type == pygame.KEYDOWN:
-                started = True
-                just_started = True
-                # play background music from the sounds folder when game starts
-                try:
-                    if sound_mgr is not None:
-                        music_path = _find_first_music(sound_mgr.sounds_dir)
-                        if music_path:
-                            sound_mgr.play_music(music_path, loops=-1, volume=music_volume)
-                except Exception:
-                    pass
+                options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"] if main_menu_state == "main" else ["Back"]
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    main_selected_index = (main_selected_index - 1) % len(options)
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    main_selected_index = (main_selected_index + 1) % len(options)
+                elif event.key == pygame.K_RETURN:
+                    if main_menu_state == "main":
+                        if main_selected_index == 0: started = True; just_started = True; play_bg_music()
+                        elif main_selected_index == 1: main_menu_state = "customize"; main_selected_index = 0
+                        elif main_selected_index == 2: main_menu_state = "settings"; main_selected_index = 0
+                        elif main_selected_index == 3: main_menu_state = "credits"; main_selected_index = 0
+                        elif main_selected_index == 4: running = False
+                    else:
+                        if main_selected_index == 0: main_menu_state = "main"; main_selected_index = 0
+
             # volume controls (global, works on start screen and in-game)
             if event.type == pygame.KEYDOWN:
                 try:
@@ -118,17 +263,96 @@ def main(name, port, host):
         game_surface.fill(background_color)
 
         if not started:
-            # Draw start screen
-            title = font.render('MyGame', False, (255, 255, 255))
-            prompt = small_font.render('Press any key to start', False, (255, 255, 255))
+            if start_bg:
+                scaled_bg = pygame.transform.scale(start_bg, (game_w, game_h))
+                game_surface.blit(scaled_bg, (0, 0))
+            else:
+                game_surface.fill((20, 20, 40))
 
-            title_rect = title.get_rect(center=(game_w // 2, game_h // 2 - 40))
-            prompt_rect = prompt.get_rect(center=(game_w // 2, game_h // 2 + 30))
+            overlay = pygame.Surface((game_w, game_h), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 100))
+            game_surface.blit(overlay, (0, 0))
 
-            game_surface.blit(title, title_rect)
-            game_surface.blit(prompt, prompt_rect)
+            if main_menu_state == "main":
+                if start_logo:
+                    logo_w = 105
+                    logo_h = int(start_logo.get_height() * (logo_w / start_logo.get_width()))
+                    scaled_logo = pygame.transform.smoothscale(start_logo, (logo_w, logo_h))
+                    game_surface.blit(scaled_logo, (game_w // 2 - logo_w // 2, 30))
+                
+                # Draw "Dodge Box" title
+                dodge_shadow = title_font.render("Dodge Box", True, (50, 50, 50))
+                game_surface.blit(dodge_shadow, dodge_shadow.get_rect(center=(game_w // 2 + 5, 175)))
+                
+                dodge_title = title_font.render("Dodge Box", True, (255, 255, 255))
+                game_surface.blit(dodge_title, dodge_title.get_rect(center=(game_w // 2, 170)))
+
+                options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
+                for i, opt in enumerate(options):
+                    color = (255, 255, 100) if i == main_selected_index else (220, 220, 220)
+                    opt_surf = font.render(opt, True, color)
+                    game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, 280 + i * 50)))
+            elif main_menu_state == "customize":
+                title_surf = small_font.render("Select Character Color", True, (255, 255, 255))
+                game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, 180)))
+                
+                colors = [
+                    ((255, 105, 180), "Pink"),
+                    ((255, 0, 0), "Red"),
+                    ((0, 0, 255), "Blue"),
+                    ((255, 255, 0), "Yellow"),
+                    ((0, 255, 0), "Green"),
+                    ((0, 0, 0), "Black"),
+                    ((255, 255, 255), "White")
+                ]
+                
+                box_w, box_h = 50, 50
+                gap = 20
+                total_w = len(colors) * box_w + (len(colors) - 1) * gap
+                start_x = game_w // 2 - total_w // 2
+                start_y = 250
+                
+                for idx, (c_val, c_name) in enumerate(colors):
+                    bx = start_x + idx * (box_w + gap)
+                    rect = pygame.Rect(bx, start_y, box_w, box_h)
+                    pygame.draw.rect(game_surface, c_val, rect)
+                    if character_color == c_val:
+                        pygame.draw.rect(game_surface, (255, 255, 100), rect, 4) # highlight selected
+                    else:
+                        pygame.draw.rect(game_surface, (200, 200, 200), rect, 2)
+                        
+                # Demo character preview
+                prev_rect = pygame.Rect(game_w // 2 - 20, 350, 40, 40)
+                pygame.draw.rect(game_surface, character_color, prev_rect, 4)
+                
+                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                opt_surf = font.render("Back", True, color)
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
+
+            elif main_menu_state == "settings":
+                vol_text2 = pygame.font.SysFont("Comic Sans MS", 28).render(f"Music Volume: {int(music_volume*100)}%", True, (220, 220, 220))
+                game_surface.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 40)))
+                
+                slider_x = game_w // 2 - 150
+                slider_y = game_h // 2
+                slider_w = 300
+                pygame.draw.line(game_surface, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 8)
+                filled_w = int(music_volume * slider_w)
+                pygame.draw.line(game_surface, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 8)
+                pygame.draw.circle(game_surface, (255, 255, 100), (slider_x + filled_w, slider_y), 12)
+
+                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                opt_surf = font.render("Back", True, color)
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
+            else:
+                msg = font.render(f"{main_menu_state.capitalize()} - Coming Soon!", True, (255, 255, 255))
+                game_surface.blit(msg, msg.get_rect(center=(game_w // 2, game_h // 2)))
+
+                color = (255, 255, 100) if 0 == main_selected_index else (220, 220, 220)
+                opt_surf = font.render("Back", True, color)
+                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 80)))
         else:
-            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked)
+            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked, set_pause=in_pause_menu, color=character_color)
             just_started = False
             socket.send_pyobj(action) # send action
              
@@ -228,6 +452,69 @@ def main(name, port, host):
         except Exception:
             pass
 
+        # Handle Slider Dragging
+        is_settings_open = (started and in_pause_menu and pause_menu_state == "settings") or (not started and main_menu_state == "settings")
+        if is_settings_open and pygame.mouse.get_pressed()[0]:
+            mx, my = pygame.mouse.get_pos()
+            win_w, win_h = display.get_size()
+            scale = min(win_w / game_w, win_h / game_h)
+            if scale > 0:
+                scaled_w = int(game_w * scale)
+                scaled_h = int(game_h * scale)
+                offset_x = (win_w - scaled_w) // 2
+                offset_y = (win_h - scaled_h) // 2
+                if offset_x <= mx <= offset_x + scaled_w and offset_y <= my <= offset_y + scaled_h:
+                    gx = int((mx - offset_x) / scale)
+                    gy = int((my - offset_y) / scale)
+                    slider_x = game_w // 2 - 150
+                    slider_y = game_h // 2
+                    slider_w = 300
+                    if slider_x - 30 <= gx <= slider_x + slider_w + 30 and slider_y - 40 <= gy <= slider_y + 40:
+                        fraction = (gx - slider_x) / slider_w
+                        music_volume = max(0.0, min(1.0, fraction))
+                        try:
+                            if sound_mgr is not None: sound_mgr.set_music_volume(music_volume)
+                        except Exception:
+                            pass
+
+
+        if in_pause_menu:
+            pause_overlay = pygame.Surface((game_w, game_h), pygame.SRCALPHA)
+            pause_overlay.fill((0, 0, 0, 200)) # Darker overlay
+            
+            p_font = pygame.font.SysFont("Comic Sans MS", 48, bold=True)
+            p_small = pygame.font.SysFont("Comic Sans MS", 36)
+            p_smaller = pygame.font.SysFont("Comic Sans MS", 28)
+            
+            title_text = "PAUSED" if pause_menu_state == "main" else "SETTINGS"
+            title_surf = p_font.render(title_text, True, (255, 255, 255))
+            pause_overlay.blit(title_surf, title_surf.get_rect(center=(game_w // 2, game_h // 4)))
+            
+            if pause_menu_state == "main":
+                options = ["Resume", "Settings", "Quit"]
+                for i, opt in enumerate(options):
+                    color = (255, 255, 100) if i == pause_selected_index else (200, 200, 200)
+                    opt_surf = p_small.render(opt, True, color)
+                    pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 50 - 50)))
+            elif pause_menu_state == "settings":
+                vol_text2 = p_smaller.render(f"Music Volume: {int(music_volume*100)}%", True, (220, 220, 220))
+                pause_overlay.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 40)))
+                
+                # Draw Volume Slider
+                slider_x = game_w // 2 - 150
+                slider_y = game_h // 2
+                slider_w = 300
+                pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 8)
+                filled_w = int(music_volume * slider_w)
+                pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 8)
+                pygame.draw.circle(pause_overlay, (255, 255, 100), (slider_x + filled_w, slider_y), 12)
+
+                color = (255, 255, 100) if 0 == pause_selected_index else (200, 200, 200)
+                opt_surf = p_small.render("Back", True, color)
+                pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + 70)))
+
+            game_surface.blit(pause_overlay, (0, 0))
+
         # Scale the internal game surface to the window size with aspect ratio preserved.
         win_w, win_h = display.get_size()
         scale = min(win_w / game_w, win_h / game_h)
@@ -242,12 +529,14 @@ def main(name, port, host):
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
 
-def get_action(name, keys, start_game=False):
+def get_action(name, keys, start_game=False, set_pause=None, color=(255, 255, 255)):
+    if set_pause:
+        return Action(name, False, False, False, False, start_game, set_pause, color)
     left = keys[pygame.K_LEFT] or keys[pygame.K_a]
     right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
     jump = keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_SPACE]
     down = keys[pygame.K_DOWN] or keys[pygame.K_s]
-    return Action(name, left, right, jump, down, start_game)
+    return Action(name, left, right, jump, down, start_game, set_pause, color)
 
 class Name_Textures: # class to generate and store textures of user names
 
