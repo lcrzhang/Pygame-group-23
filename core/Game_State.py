@@ -144,6 +144,37 @@ class Game_State:
             # start_game signal is used elsewhere; do not auto-start the level timer here
             pass
 
+        # ── Debug shortcuts (only when game is running, not in lobby) ──────────
+        debug_cmd = getattr(action, "debug_command", None)
+        if debug_cmd and not getattr(self, "in_lobby", False):
+            if debug_cmd == "skip_timer":
+                # Set timer to 0 so the door spawns on this tick's tick_timer call
+                self.timer = 0.01
+            elif debug_cmd == "next_level":
+                self.load_level()
+                return
+            elif debug_cmd == "kill_player":
+                name = action.get_name()
+                if name in self.players:
+                    self.players[name].health = 0
+            elif debug_cmd.startswith("set_modifier:"):
+                mod_name = debug_cmd[len("set_modifier:"):]
+                from levels.Levels import AVAILABLE_MODIFIERS
+                for m in AVAILABLE_MODIFIERS:
+                    if m.name == mod_name:
+                        self.active_modifier = m
+                        basis = self.current_level.modifiers
+                        from levels.Levels import PlayerModifiers
+                        self.current_modifiers = PlayerModifiers(
+                            gravity=basis.gravity * m.gravity_mult,
+                            gravity_hold=basis.gravity_hold * m.gravity_mult,
+                            friction=basis.friction * m.friction_mult,
+                            acceleration=basis.acceleration * m.speed_mult,
+                            max_fall_speed=basis.max_fall_speed,
+                            jump_speed=basis.jump_speed,
+                        )
+                        break
+
         if action.get_set_pause() is not None:
             if len(self.players) <= 1:
                 self.is_paused = action.get_set_pause()
