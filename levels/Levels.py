@@ -89,6 +89,9 @@ class Level:
     # Optional rects that represent instant kill zones (x, y, w, h)
     kill_zones: List[Tuple[int, int, int, int]] = field(default_factory=list)
 
+    # Text lines to draw on the background
+    instructions: List[str] = field(default_factory=list)
+
     # Per-level player physics modifiers
     modifiers:  PlayerModifiers = field(default_factory=PlayerModifiers)
     
@@ -99,6 +102,28 @@ class Level:
 # ---------------------------------------------------------------------------
 # Level definitions — edit freely!
 # ---------------------------------------------------------------------------
+
+LOBBY_LEVEL = Level(
+    name="Starter Lobby",
+    platforms=[
+        (0, 1040, 1920, 40),    # Ground
+        (200, 925, 400, 20),    # Left platform
+        (760, 800, 400, 20),    # Center platform
+        (1320, 925, 400, 20),   # Right platform
+    ],
+    kill_zones=[],
+    door=(940, 720),            # On the center platform
+    spawn=(100, 950),
+    theme="lobby",
+    world_size=(1920, 1080),
+    instructions=[
+        "Welcome to the game!",
+        "Use Arrow Keys or WASD to move & jump.",
+        "Everyone must enter the door to start.",
+        "Dodge the dropping projectiles!",
+        "If you fall in spikes, you lose a life."
+    ]
+)
 
 LEVEL_1 = Level(
     name="The Beginning",
