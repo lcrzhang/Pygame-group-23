@@ -84,6 +84,9 @@ class Level:
     theme:      Optional[str] = None   # e.g. "cave", "space", "forest"
     name:       str = "Unknown Level"  # display name for the map
 
+    # Optional per-level platform texture (path to image) or None to use plain rectangles.
+    # If provided the Platform entity will attempt to load & scale this image per-platform.
+    platform_image: Optional[str] = None
 
     # Optional list of image file paths to use as projectile sprites for this level.
     # If None or empty the Projectile class falls back to coloured shapes.
@@ -134,7 +137,8 @@ LOBBY_LEVEL = Level(
         "Everyone must enter the door to start.",
         "Dodge the dropping projectiles!",
         "If you fall in spikes, you lose a life.",
-        "Adjust volume with + and - keys."
+        "Adjust volume with + and - keys.",
+        "Tip: hold jump to go higher!"
     ]
 )
 
@@ -162,7 +166,7 @@ LEVEL_1 = Level(
         (0, 500, 100, 20), #left upper under
         (1820, 500, 100, 20), #right upper under
     ],
-    door=(1900, 920),
+    door=(950, 320),
     spawn=(20, 515),
     background="images/Level1/level1_bg.png",
     theme="default",
