@@ -447,7 +447,7 @@ class Game_State:
             is_viewer_dead = self.players[name].health <= 0
             
         for unit in self.units:
-            unit.draw(surface, name_textures, name, is_viewer_dead)
+            unit.draw(surface, name_textures, name, is_viewer_dead, self.active_modifier)
 
         # ── Draw kill zones ───────────────────────────────────────────────────
         if hasattr(self, "current_level") and self.current_level and self.current_level.kill_zones:

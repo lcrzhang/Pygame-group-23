@@ -885,7 +885,7 @@ class Name_Textures: # class to generate and store textures of user names
 
     def get_texture(self, name):
         if not name in self.name_textures:
-            font = pygame.font.SysFont('Comic Sans MS', 20)
+            font = pygame.font.SysFont('Comic Sans MS', 24, bold=True)
             name_texture = font.render(name, False, (255,255,255))
             self.name_textures[name] = name_texture
         return self.name_textures[name]

@@ -14,6 +14,7 @@ class Player:
         self.is_jumping_btn_held = False
         self.drop_through = False
         self.health = Player.max_health
+        self.facing_right = True
 
     def __repr__(self):
         return f"position: {self.position} speed: {self.speed}"
@@ -27,16 +28,22 @@ class Player:
             modifiers = PlayerModifiers()
 
         if self.health <= 0:
-            if action.is_left(): self.speed.x -= modifiers.acceleration
-            if action.is_right(): self.speed.x += modifiers.acceleration
+            if action.is_left(): 
+                self.speed.x -= modifiers.acceleration
+                self.facing_right = False
+            if action.is_right(): 
+                self.speed.x += modifiers.acceleration
+                self.facing_right = True
             if action.is_jump(): self.speed.y -= modifiers.acceleration
             if action.is_down(): self.speed.y += modifiers.acceleration
             return
 
         if action.is_left():
             self.speed.x -= modifiers.acceleration
+            self.facing_right = False
         if action.is_right():
             self.speed.x += modifiers.acceleration
+            self.facing_right = True
             
         just_pressed_jump = action.is_jump() and not getattr(self, "prev_jump_held", False)
         self.prev_jump_held = action.is_jump()
@@ -146,28 +153,49 @@ class Player:
                     self.on_ground = True
                     self.jumps_remaining = modifiers.max_jumps
 
-    def draw(self, surface, name_textures, viewer_name=None, is_viewer_dead=False):
+    def draw(self, surface, name_textures, viewer_name=None, is_viewer_dead=False, active_modifier=None):
         if self.health <= 0:
             # Visible if it's the local player, or if the local player is also dead
             if self.name != viewer_name and not is_viewer_dead:
                 return # Invisible to living players
                 
-            if not hasattr(self, 'ghost_img'):
+            if not hasattr(self, 'ghost_img') or getattr(self, '_last_ghost_color', None) != self.color:
                 try:
                     import os
                     img_path = "images/general (All levels)/ghost.png"
-                    self.ghost_img = pygame.image.load(img_path).convert_alpha()
-                    self.ghost_img = pygame.transform.scale(self.ghost_img, (Player.width, Player.height))
+                    base_img = pygame.image.load(img_path).convert_alpha()
+                    # Scale to 60x60 (1.5x original 40x40)
+                    ghost_size = (60, 60)
+                    base_img = pygame.transform.scale(base_img, ghost_size)
+                    
+                    # Create colored version
+                    self.ghost_img = base_img.copy()
+                    color_surf = pygame.Surface(ghost_size, pygame.SRCALPHA)
+                    color_surf.fill((*self.color, 255))
+                    self.ghost_img.blit(color_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                    
                     self.ghost_img.set_alpha(128) # 50% opacity
+                    self._last_ghost_color = self.color
                 except Exception:
                     self.ghost_img = None
             
             if self.ghost_img:
-                surface.blit(self.ghost_img, (int(self.position.x), int(self.position.y)))
+                img_to_draw = self.ghost_img
+                
+                # If inverted controls are active, we logic is flipped
+                is_inverted = active_modifier and getattr(active_modifier, "inverted_controls", False)
+                should_flip = (self.facing_right and not is_inverted) or (not self.facing_right and is_inverted)
+                
+                if should_flip:
+                    img_to_draw = pygame.transform.flip(self.ghost_img, True, False)
+                
+                # Offset by -10, -10 to center 60x60 sprite over 40x40 hitbox
+                surface.blit(img_to_draw, (int(self.position.x - 10), int(self.position.y - 10)))
             else:
-                ghost_surf = pygame.Surface((Player.width, Player.height), pygame.SRCALPHA)
-                pygame.draw.rect(ghost_surf, (self.color[0], self.color[1], self.color[2], 128), (0,0,Player.width,Player.height), 4)
-                surface.blit(ghost_surf, (int(self.position.x), int(self.position.y)))
+                ghost_size = 60
+                ghost_surf = pygame.Surface((ghost_size, ghost_size), pygame.SRCALPHA)
+                pygame.draw.rect(ghost_surf, (*self.color, 128), (0, 0, ghost_size, ghost_size), 4)
+                surface.blit(ghost_surf, (int(self.position.x - 10), int(self.position.y - 10)))
                 
             name_texture = name_textures.get_texture(self.name)
             name_surf = name_texture.copy()
