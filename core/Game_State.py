@@ -94,7 +94,11 @@ class Game_State:
 
         # Random level modifier (unlocked after MODIFIER_UNLOCK_LEVEL levels played)
         if not is_lobby and self.levels_played >= MODIFIER_UNLOCK_LEVEL and random.random() < MODIFIER_CHANCE:
-            self.active_modifier = random.choice(AVAILABLE_MODIFIERS)
+            eligible_modifiers = [
+                m for m in AVAILABLE_MODIFIERS
+                if not (m.name == "Ice Skates" and self.current_level_index == 3)
+            ]
+            self.active_modifier = random.choice(eligible_modifiers)
             basis = level.modifiers
             from levels.Levels import PlayerModifiers
             self.current_modifiers = PlayerModifiers(
@@ -415,20 +419,55 @@ class Game_State:
             is_ice = getattr(self.current_level, "theme", "") == "ice"
             for (kx, ky, kw, kh) in self.current_level.kill_zones:
                 if is_ice:
-                    # Draw a row of blue spike triangles filling the kill zone
+                    # Draw a row of spike triangles filling the kill zone
                     spike_w = 40
                     spike_h = min(kh, 60)
-                    spike_color       = (80, 160, 255)   # icy blue
                     spike_color_dark  = (40, 100, 200)   # darker outline
                     num_spikes = kw // spike_w + 1
-                    for i in range(num_spikes):
-                        sx = kx + i * spike_w
-                        tip_x = sx + spike_w // 2
-                        tip_y = ky
-                        bl = (sx, ky + spike_h)
-                        br = (sx + spike_w, ky + spike_h)
-                        pygame.draw.polygon(surface, spike_color, [bl, (tip_x, tip_y), br])
-                        pygame.draw.polygon(surface, spike_color_dark, [bl, (tip_x, tip_y), br], 2)
+
+                    # Try to texture spikes with the level's platform tile
+                    platform_tex_path = getattr(self.current_level, "platform_image", None)
+                    spike_tex = self.platforms[0]._load_texture(platform_tex_path) if (platform_tex_path and self.platforms) else None
+
+                    if spike_tex is not None:
+                        # 1. Tile the texture across the full kill zone
+                        tw, th = spike_tex.get_size()
+                        tiled_surf = pygame.Surface((kw, kh), pygame.SRCALPHA)
+                        for ty in range(0, kh, th):
+                            for tx in range(0, kw, tw):
+                                tiled_surf.blit(spike_tex, (tx, ty))
+                        # 2. Draw spike shapes as opaque white on a transparent mask
+                        mask_surf = pygame.Surface((kw, kh), pygame.SRCALPHA)
+                        mask_surf.fill((0, 0, 0, 0))
+                        for i in range(num_spikes):
+                            sx = i * spike_w  # relative to kill zone origin
+                            pygame.draw.polygon(mask_surf, (255, 255, 255, 255), [
+                                (sx, spike_h),
+                                (sx + spike_w // 2, 0),
+                                (sx + spike_w, spike_h),
+                            ])
+                        # 3. Multiply: only show texture where spikes are
+                        tiled_surf.blit(mask_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                        surface.blit(tiled_surf, (kx, ky))
+                        # 4. Draw dark outlines on top
+                        for i in range(num_spikes):
+                            sx = kx + i * spike_w
+                            pygame.draw.polygon(surface, spike_color_dark, [
+                                (sx, ky + spike_h),
+                                (sx + spike_w // 2, ky),
+                                (sx + spike_w, ky + spike_h),
+                            ], 2)
+                    else:
+                        # Fallback: plain blue triangles
+                        spike_color = (80, 160, 255)
+                        for i in range(num_spikes):
+                            sx = kx + i * spike_w
+                            tip_x = sx + spike_w // 2
+                            tip_y = ky
+                            bl = (sx, ky + spike_h)
+                            br = (sx + spike_w, ky + spike_h)
+                            pygame.draw.polygon(surface, spike_color, [bl, (tip_x, tip_y), br])
+                            pygame.draw.polygon(surface, spike_color_dark, [bl, (tip_x, tip_y), br], 2)
                 else:
                     # Generic kill zone: red outline
                     pygame.draw.rect(surface, (220, 50, 50), (kx, ky, kw, kh), 3)

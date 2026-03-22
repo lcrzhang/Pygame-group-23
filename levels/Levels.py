@@ -170,7 +170,7 @@ LEVEL_1 = Level(
     spawn=(20, 515),
     background="images/Level1/space_bg.png",
     theme="default",
-    platform_image="images/platform_textures/lvl1/tile.png",  # drop tile.png here to activate
+    platform_image="images/platform_textures/lvl1/tile.png",  # ⚠ tile.png ontbreekt nog — voeg een 128x128 px naadloze tile toe om te activeren
     projectile_images=[
         "images/Level1/space_invader_1.png",
         "images/Level1/space_invader_2.png",
@@ -247,7 +247,7 @@ LEVEL_3 = Level(
     background="images/Level3/jungle_bg.png",    # lush tropical green
     projectile_images=["images/Level3/banana.png"],
     theme="forest",
-    platform_image="images/platform_textures/lvl3/tile.png",  # drop tile.png here to activate
+    platform_image="images/platform_textures/lvl3/tile.png",  # ⚠ tile.png ontbreekt nog — voeg een 128x128 px naadloze tile toe om te activeren
     world_size=(1920, 1080),    # 2x width, 2x height
 )
 
@@ -299,6 +299,8 @@ LEVEL_5 = Level(
     theme="beach",
     background="images/Level5/beach_bg.png",  # Sandy color
     projectile_images=["images/Level5/coconut.png"],
+    # ⚠ platform_image ontbreekt nog — zet een 128x128 px naadloze tile op:
+    # platform_image="images/platform_textures/lvl5/tile.png",
     world_size=(1920, 1080)
 )
 
