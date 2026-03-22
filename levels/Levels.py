@@ -108,7 +108,7 @@ class Level:
 
 
 # ---------------------------------------------------------------------------
-# Level definitions — edit freely!
+# Level definitions 
 # ---------------------------------------------------------------------------
 
 LOBBY_LEVEL = Level(
@@ -148,7 +148,6 @@ LOBBY_LEVEL = Level(
 LEVEL_1 = Level(
     name="Galaxy Map",
     platforms=[
-
         (0,   1000, 1920, 80), #Ground
         (100,  900, 100, 20), #left under
         (1770, 900, 100, 20), #right under
@@ -173,7 +172,7 @@ LEVEL_1 = Level(
     spawn=(20, 515),
     background="images/Level1/space_bg.png",
     theme="default",
-    platform_image="images/platform_textures/lvl1/brickwall.png",  # ⚠ tile.png ontbreekt nog — voeg een 128x128 px naadloze tile toe om te activeren
+    platform_image="images/platform_textures/lvl1/brickwall.png",
     projectile_images=[
         "images/Level1/space_invader_1.png",
         "images/Level1/space_invader_2.png",
@@ -207,9 +206,8 @@ LEVEL_2 = Level(
     background="images/Level2/cave_bg.png",  # dark brown/amber crystals
     projectile_images=["images/Level2/image-removebg-preview.png"],
     theme="cave",
-    platform_image="images/platform_textures/lvl2/tile.png",  # drop tile.png here to activate
+    platform_image="images/platform_textures/lvl2/tile.png",
     world_size=(1920, 1080),
-    # Example: low-gravity cave level — floatier jumps, slower falling
     modifiers=PlayerModifiers(
         gravity=0.25,
         gravity_hold=0.8,
@@ -218,13 +216,11 @@ LEVEL_2 = Level(
     ),
 )
 
-# Add your own levels here ↓
 LEVEL_3 = Level(
     name="Forest High",
     platforms=[
         # Ground
         (0,   1000, 1920, 80),
-        
         # Bottom center
         (900, 900,  120, 20),
         # Lower section
@@ -250,7 +246,7 @@ LEVEL_3 = Level(
     background="images/Level3/jungle_bg.png",    # lush tropical green
     projectile_images=["images/Level3/banana.png"],
     theme="forest",
-    platform_image="images/platform_textures/lvl3/jungle.png",  # ⚠ tile.png ontbreekt nog — voeg een 128x128 px naadloze tile toe om te activeren
+    platform_image="images/platform_textures/lvl3/jungle.png",
     world_size=(1920, 1080),    # 2x width, 2x height
 )
 
@@ -277,7 +273,7 @@ LEVEL_4 = Level(
     theme="ice",
     background="images/Level4/ice_bg.png",
     projectile_images=["images/Level4/ice_spike.png"],
-    platform_image="images/platform_textures/lvl4/tile.png",  # drop tile.png here to activate
+    platform_image="images/platform_textures/lvl4/tile.png", 
     modifiers=PlayerModifiers(
         friction=0.99,       # Very slippery map
         acceleration=0.3,    # Difficult to accelerate (ice)
@@ -290,7 +286,7 @@ LEVEL_5 = Level(
     platforms=[
         # Ground
         (0,   1000, 1920, 80),
-        # Some low platforms
+        # low platforms
         (150, 850, 200, 20),
         (450, 700, 200, 20),
         (800, 600, 300, 20),
@@ -300,11 +296,9 @@ LEVEL_5 = Level(
     door=(1800, 920),
     spawn=(50, 900),
     theme="beach",
-    background="images/Level5/beach_bg.png",  # Sandy color
+    background="images/Level5/beach_bg.png",
     projectile_images=["images/Level5/coconut.png"],
     platform_image="images/platform_textures/lvl5/wood3.jpg",
-    # ⚠ platform_image ontbreekt nog — zet een 128x128 px naadloze tile op:
-    # platform_image="images/platform_textures/lvl5/tile.png",
     world_size=(1920, 1080)
 )
 
