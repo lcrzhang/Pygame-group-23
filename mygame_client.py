@@ -102,7 +102,7 @@ def main(name, port, host):
     # sound manager (optional)
     try:
         sound_mgr = SoundManager()
-        jump_sound = pygame.mixer.Sound("sounds/lumora_studios-pixel-jump-319167.mp3")
+        jump_sound = pygame.mixer.Sound("sounds/sfx/lumora_studios-pixel-jump-319167.mp3")
         if jump_sound:
             jump_sound.set_volume(jump_volume)
     except Exception:
