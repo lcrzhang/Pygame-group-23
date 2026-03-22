@@ -409,6 +409,29 @@ class Game_State:
         for unit in self.units:
             unit.draw(surface, name_textures)
 
+        # ── Draw kill zones ───────────────────────────────────────────────────
+        if hasattr(self, "current_level") and self.current_level and self.current_level.kill_zones:
+            is_ice = getattr(self.current_level, "theme", "") == "ice"
+            for (kx, ky, kw, kh) in self.current_level.kill_zones:
+                if is_ice:
+                    # Draw a row of blue spike triangles filling the kill zone
+                    spike_w = 40
+                    spike_h = min(kh, 60)
+                    spike_color       = (80, 160, 255)   # icy blue
+                    spike_color_dark  = (40, 100, 200)   # darker outline
+                    num_spikes = kw // spike_w + 1
+                    for i in range(num_spikes):
+                        sx = kx + i * spike_w
+                        tip_x = sx + spike_w // 2
+                        tip_y = ky
+                        bl = (sx, ky + spike_h)
+                        br = (sx + spike_w, ky + spike_h)
+                        pygame.draw.polygon(surface, spike_color, [bl, (tip_x, tip_y), br])
+                        pygame.draw.polygon(surface, spike_color_dark, [bl, (tip_x, tip_y), br], 2)
+                else:
+                    # Generic kill zone: red outline
+                    pygame.draw.rect(surface, (220, 50, 50), (kx, ky, kw, kh), 3)
+
         # ── Lobby Instructions Text ───────────────────────────────────────────
         if getattr(self, "current_level", None) and hasattr(self.current_level, "instructions") and self.current_level.instructions:
             font = pygame.font.SysFont("Comic Sans MS", 28)
