@@ -168,7 +168,7 @@ LEVEL_1 = Level(
     ],
     door=(950, 320),
     spawn=(20, 515),
-    background="images/Level1/level1_bg.png",
+    background="images/Level1/space_bg.png",
     theme="default",
     projectile_images=[
         "images/Level1/space_invader_1.png",
@@ -200,7 +200,7 @@ LEVEL_2 = Level(
     ],
     door=(1750, 670),
     spawn=(50, 900),
-    background="images/Level2/cavebackground.jpg",  # dark red
+    background="images/Level2/cave_bg.png",  # dark brown/amber crystals
     projectile_images=["images/Level2/image-removebg-preview.png"],
     theme="cave",
     world_size=(1920, 1080),
@@ -242,7 +242,7 @@ LEVEL_3 = Level(
     ],
     door=(950, 220),
     spawn=(940, 960),
-    background="images/Level3/forestbg.jpg",    # dark green
+    background="images/Level3/jungle_bg.png",    # lush tropical green
     projectile_images=["images/Level3/banana.png"],
     theme="forest",
     world_size=(1920, 1080),    # 2x width, 2x height
@@ -293,9 +293,9 @@ LEVEL_5 = Level(
     door=(1800, 920),
     spawn=(50, 900),
     theme="beach",
-    background="images/Level5/scenic-view-of-beach-against-clear-blue-sky-740672775-597a52fdc412440010fe86a9.jpg",  # Sandy color
+    background="images/Level5/beach_bg.png",  # Sandy color
     projectile_images=["images/Level5/coconut.png"],
     world_size=(1920, 1080)
 )
 
-LEVELS = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, LEVEL_5]
+LEVELS = [LEVEL_5, LEVEL_2, LEVEL_3, LEVEL_4, LEVEL_1]

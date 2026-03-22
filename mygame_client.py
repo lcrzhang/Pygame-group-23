@@ -2,6 +2,9 @@ import sys
 import zmq
 import pygame
 import os
+import time
+import math
+from PIL import Image, ImageSequence
 from SoundManager import SoundManager
 
 from core.Action import Action
@@ -28,8 +31,45 @@ def main(name, port, host):
     clock = pygame.time.Clock()
     background_color = (0,0,0)
     background_cache = {}   # cache loaded background images (store original surfaces)
+    
+    class GIFPlayer:
+        def __init__(self, filename):
+            self.filename = filename
+            self.frames = []
+            self.durations = []
+            self.last_frame_time = 0
+            self.current_frame_idx = 0
+            self._load_frames()
+
+        def _load_frames(self):
+            if not os.path.exists(self.filename):
+                return
+            with Image.open(self.filename) as img:
+                for frame in ImageSequence.Iterator(img):
+                    f = frame.convert('RGBA')
+                    pygame_image = pygame.image.fromstring(f.tobytes(), f.size, f.mode)
+                    self.frames.append(pygame_image)
+                    self.durations.append(frame.info.get('duration', 100)) # ms
+
+        def get_current_frame(self):
+            if not self.frames:
+                return None
+            now = pygame.time.get_ticks()
+            if now - self.last_frame_time > self.durations[self.current_frame_idx]:
+                self.current_frame_idx = (self.current_frame_idx + 1) % len(self.frames)
+                self.last_frame_time = now
+            return self.frames[self.current_frame_idx]
+
+    blackhole_player = None # Lazy load later
     background_image = None 
     name_textures = Name_Textures()
+    
+    # Font for black hole lore
+    lore_font = pygame.font.SysFont("Comic Sans MS", 60, italic=True)
+    
+    # State for black hole menu
+    black_hole_menu_active = False
+    
     game_state = None
     started = False
     just_started = False
@@ -38,6 +78,7 @@ def main(name, port, host):
 
     font = pygame.font.SysFont('Comic Sans MS', 48)
     small_font = pygame.font.SysFont('Comic Sans MS', 24)
+    timer_font = pygame.font.SysFont('Comic Sans MS', 72)
     
     # Load Dodge Box specific font
     try:
@@ -121,6 +162,23 @@ def main(name, port, host):
                 if gy < 0: gy = 0
                 if gy >= game_h: gy = game_h - 1
 
+                if black_hole_menu_active:
+                    # Continue Button
+                    if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and (game_h // 2) - 40 <= gy <= (game_h // 2) + 40:
+                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            action.start_game = True
+                            black_hole_menu_active = False
+                    # Main Menu Button
+                    elif game_w // 2 - 200 <= gx <= game_w // 2 + 200 and (game_h // 2 + 100) - 40 <= gy <= (game_h // 2 + 100) + 40:
+                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            started = False
+                            just_started = False
+                            black_hole_menu_active = False
+                            game_state = None
+                    
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        continue # swallow clicks if menu is active
+                
                 if not started:
                     if main_menu_state == "main":
                         options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
@@ -165,8 +223,8 @@ def main(name, port, host):
                     else:
                         if pause_menu_state == "main":
                             for i, opt in enumerate(["Resume", "Settings", "Quit"]):
-                                by = game_h // 2 + i * 50 - 50
-                                if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                                by = game_h // 2 + i * 80 - 80
+                                if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 30 <= gy <= by + 30:
                                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                                         if i == 0: in_pause_menu = False
                                         elif i == 1: pause_menu_state = "settings"; pause_selected_index = 0
@@ -174,8 +232,8 @@ def main(name, port, host):
                                     elif event.type == pygame.MOUSEMOTION:
                                         pause_selected_index = i
                         elif pause_menu_state == "settings":
-                            by = game_h // 2 + 70
-                            if game_w // 2 - 120 <= gx <= game_w // 2 + 120 and by - 20 <= gy <= by + 20:
+                            by = game_h // 2 + 100
+                            if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 30 <= gy <= by + 30:
                                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                                     pause_menu_state = "main"; pause_selected_index = 0
                                 elif event.type == pygame.MOUSEMOTION:
@@ -416,9 +474,106 @@ def main(name, port, host):
                 minutes = int(game_state.timer) // 60
                 seconds = int(game_state.timer) % 60
                 time_str = f"{minutes:02d}:{seconds:02d}"
-                time_text = font.render(time_str, False, (255, 255, 255))
+                time_text = timer_font.render(time_str, False, (255, 255, 255))
                 time_rect = time_text.get_rect(midtop=(game_w // 2, 10))
-                game_surface.blit(time_text, time_rect)
+                # Draw timer ONLY if black hole effect is NOT active
+                if not getattr(game_state, "black_hole_active", False):
+                    game_surface.blit(time_text, time_rect)
+                else:
+                    # Special Black Hole Effect for Level 5
+                    elapsed = time.time() - game_state.black_hole_start_time
+                    if elapsed < 4.0:
+                        # Lore Phases (0-4 seconds): Growing Black Hole + Sequential Text
+                        game_surface.fill((0, 0, 0))
+                        
+                        # 1. Draw the scaling Black Hole GIF (Lazy Load)
+                        if blackhole_player is None:
+                            blackhole_player = GIFPlayer("images/Level1/blackhole.gif")
+                        bh_frame = blackhole_player.get_current_frame()
+                        if bh_frame:
+                            # Scale from 5% to 100% over the full 4 seconds
+                            scale_factor = max(0.05, min(1.0, elapsed / 4.0))
+                            new_size = (int(bh_frame.get_width() * scale_factor), int(bh_frame.get_height() * scale_factor))
+                            scaled_bh = pygame.transform.scale(bh_frame, new_size)
+                            f_rect = scaled_bh.get_rect(center=(game_w // 2, game_h // 2))
+                            game_surface.blit(scaled_bh, f_rect)
+
+                        # 2. Draw Lore Text based on sub-phase
+                        if elapsed < 2.0:
+                            txt = lore_font.render("What is happening?", True, (255, 255, 255))
+                        else:
+                            txt = lore_font.render("Is this a... Blackhole?", True, (255, 255, 255))
+                        game_surface.blit(txt, txt.get_rect(center=(game_w // 2, game_h // 2)))
+                    
+                    else:
+                        # Black hole GIF + Spiral Players phase (4s+)
+                        game_surface.fill((0, 0, 0))
+                        
+                        # 1. Draw the Black Hole GIF at full size
+                        if blackhole_player is None:
+                            blackhole_player = GIFPlayer("images/Level1/blackhole.gif")
+                        bh_frame = blackhole_player.get_current_frame()
+                        if bh_frame:
+                            f_rect = bh_frame.get_rect(center=(game_w // 2, game_h // 2))
+                            game_surface.blit(bh_frame, f_rect)
+                        
+                        # 2. Draw Spiraling Players
+                        # We use a radius that decreases over time
+                        orbit_time = elapsed - 4.0 # Time since GIF started
+                        players_remaining = 0
+                        
+                        for i, p_name in enumerate(game_state.players):
+                            # Unique start radius and contraction speed for each player
+                            start_r = 450 + (i * 40)
+                            contract_speed = 80 + (i * 15)
+                            r = start_r - (orbit_time * contract_speed)
+                            
+                            threshold = 20 # "Invisible circle" radius where they disappear
+                            if r > threshold:
+                                players_remaining += 1
+                                # Unique orbital speed and phase
+                                orb_speed = 1.0 + (i * 0.2)
+                                angle = orbit_time * orb_speed + (i * (2 * math.pi / max(1, len(game_state.players))))
+                                
+                                # Orbit coordinates around the center
+                                ox = (game_w // 2) + int(math.cos(angle) * r)
+                                oy = (game_h // 2) + int(math.sin(angle) * r)
+                                
+                                # Draw player at orbital position (BORDER ONLY)
+                                p_color = (255, 255, 255) # default
+                                if p_name == name:
+                                    p_color = (0, 255, 0) # Highlight current player
+                                    
+                                pygame.draw.rect(game_surface, p_color, (ox - 10, oy - 10, 20, 20), 2)
+                                
+                                # Draw name tag
+                                n_txt = name_textures.get_texture(p_name)
+                                n_rect = n_txt.get_rect(midbottom=(ox, oy - 15))
+                                game_surface.blit(n_txt, n_rect)
+                        
+                        # 3. Show Final Menu if all are gone
+                        if players_remaining == 0:
+                            black_hole_menu_active = True
+                            
+                            # Draw overlay
+                            overlay = pygame.Surface((game_w, game_h), pygame.SRCALPHA)
+                            overlay.fill((0, 0, 0, 180))
+                            game_surface.blit(overlay, (0, 0))
+                            
+                            title_surf = font.render("YOU'VE COMPLETED THE GAME!", True, (255, 255, 255))
+                            game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, game_h // 3)))
+                            
+                            # Buttons
+                            btn_font = small_font
+                            # Continue Button
+                            cont_surf = btn_font.render("CONTINUE PLAYING", True, (0, 255, 0))
+                            cont_rect = cont_surf.get_rect(center=(game_w // 2, game_h // 2 ))
+                            game_surface.blit(cont_surf, cont_rect)
+                            
+                            # Main Menu Button
+                            menu_surf = btn_font.render("BACK TO MAIN MENU", True, (255, 50, 50))
+                            menu_rect = menu_surf.get_rect(center=(game_w // 2, game_h // 2 + 100))
+                            game_surface.blit(menu_surf, menu_rect)
             else:
                 # no game state yet — clear to default
                 game_surface.fill(background_color)
@@ -484,9 +639,17 @@ def main(name, port, host):
             if scale_x > 0 and scale_y > 0:
                 gx = int(mx / scale_x)
                 gy = int(my / scale_y)
-                slider_x = game_w // 2 - 300
-                slider_y = game_h // 2
-                slider_w = 600
+                
+                # Determine slider properties based on which menu is open
+                if started: # Pause Menu
+                    slider_x = game_w // 2 - 225
+                    slider_y = game_h // 2 + 20
+                    slider_w = 450
+                else: # Main Menu
+                    slider_x = game_w // 2 - 300
+                    slider_y = game_h // 2
+                    slider_w = 600
+                    
                 if slider_x - 30 <= gx <= slider_x + slider_w + 30 and slider_y - 40 <= gy <= slider_y + 40:
                     fraction = (gx - slider_x) / slider_w
                     music_volume = max(0.0, min(1.0, fraction))
@@ -500,9 +663,9 @@ def main(name, port, host):
             pause_overlay = pygame.Surface((game_w, game_h), pygame.SRCALPHA)
             pause_overlay.fill((0, 0, 0, 200)) # Darker overlay
             
-            p_font = pygame.font.SysFont("Comic Sans MS", 48, bold=True)
-            p_small = pygame.font.SysFont("Comic Sans MS", 36)
-            p_smaller = pygame.font.SysFont("Comic Sans MS", 28)
+            p_font = pygame.font.SysFont("Comic Sans MS", 72, bold=True)
+            p_small = pygame.font.SysFont("Comic Sans MS", 54)
+            p_smaller = pygame.font.SysFont("Comic Sans MS", 42)
             
             title_text = "PAUSED" if pause_menu_state == "main" else "SETTINGS"
             title_surf = p_font.render(title_text, True, (255, 255, 255))
@@ -513,23 +676,23 @@ def main(name, port, host):
                 for i, opt in enumerate(options):
                     color = (255, 255, 100) if i == pause_selected_index else (200, 200, 200)
                     opt_surf = p_small.render(opt, True, color)
-                    pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 50 - 50)))
+                    pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 80 - 80)))
             elif pause_menu_state == "settings":
                 vol_text2 = p_smaller.render(f"Music Volume: {int(music_volume*100)}%", True, (220, 220, 220))
                 pause_overlay.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 40)))
                 
                 # Draw Volume Slider
-                slider_x = game_w // 2 - 150
-                slider_y = game_h // 2
-                slider_w = 300
-                pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 8)
+                slider_x = game_w // 2 - 225
+                slider_y = game_h // 2 + 20
+                slider_w = 450
+                pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
                 filled_w = int(music_volume * slider_w)
-                pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 8)
-                pygame.draw.circle(pause_overlay, (255, 255, 100), (slider_x + filled_w, slider_y), 12)
+                pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
+                pygame.draw.circle(pause_overlay, (255, 255, 100), (slider_x + filled_w, slider_y), 18)
 
                 color = (255, 255, 100) if 0 == pause_selected_index else (200, 200, 200)
                 opt_surf = p_small.render("Back", True, color)
-                pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + 70)))
+                pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + 100)))
 
             game_surface.blit(pause_overlay, (0, 0))
 

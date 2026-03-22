@@ -58,6 +58,11 @@ class DifficultySettings:
         """
         Multiplier applied to every projectile's velocity vector.
 
-        Starts at 1.0× and grows by 0.08 per level, capped at 2.5×.
+        Starts at 1.0× and grows by 0.08 per level.
+        After level 5, it grows by an additional 0.2 per level for extra challenge.
         """
-        return min(2.5, 1.0 + self.levels_played * 0.08)
+        mult = 1.0 + self.levels_played * 0.08
+        if self.levels_played > 5:
+            mult += (self.levels_played - 5) * 0.2
+        # Raise cap for high levels
+        return min(5.0, mult)

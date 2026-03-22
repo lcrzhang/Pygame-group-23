@@ -33,6 +33,10 @@ class Game_State:
         self.difficulty = DifficultySettings(0)
         self.active_modifier = None  # LevelModifier | None
 
+        # Black hole effect state
+        self.black_hole_active = False
+        self.black_hole_start_time = 0.0
+
         # track time between spawn_units ticks for countdown
         self._last_tick_ms = time.time() * 1000.0
 
@@ -48,11 +52,11 @@ class Game_State:
             self.in_lobby = True
         else:
             if index is None:
-                if self.levels_played < len(LEVELS):
-                    # Pick sequentially for the first playthrough
+                # For the first 5 levels, pick sequentially
+                if self.levels_played < 5:
                     index = self.levels_played
                 else:
-                    # Pick randomly, but avoid repeating the same level twice in a row
+                    # After level 5, pick randomly from all levels, avoiding repetition
                     choices = [i for i in range(len(LEVELS)) if i != self.current_level_index]
                     index = random.choice(choices) if choices else 0
             self.current_level_index = index
@@ -66,6 +70,8 @@ class Game_State:
         self.projectiles = []
         self.warnings = []
         self.current_modifiers = level.modifiers  # per-level physics
+        self.black_hole_active = False # Reset on level load
+        self.black_hole_start_time = 0.0
 
         # Increment difficulty
         if not getattr(self, "in_lobby", False):
@@ -110,38 +116,49 @@ class Game_State:
 
     def tick_timer(self, delta_time):
         """Advance countdown timer (delta_time in seconds). Spawn door when timer reaches 0."""
-        if not self.timer_started or getattr(self, "is_paused", False):
+        if self.is_paused or self.game_over:
             return
-        if self.timer <= 0.0:
-            return
-        self.timer -= delta_time
-        if self.timer <= 0.0:
+            
+        if self.timer_started and self.timer > 0:
+            self.timer -= delta_time
+        
+        # Check if timer reached 0
+        if self.timer <= 0:
             self.timer = 0.0
             # spawn/show the door once when timer finishes
             if getattr(self, "current_level", None) and not self.doors:
-                ld = self.current_level.door
-                self.doors = [Door(ld[0], ld[1], False)]
+                # Trigger black hole effect if it's exactly the 5th level played
+                if self.levels_played == 5 and not getattr(self, "in_lobby", False):
+                    # Only activate once
+                    if not self.black_hole_active:
+                        self.black_hole_active = True
+                        self.black_hole_start_time = time.time()
+                else:
+                    ld = self.current_level.door
+                    self.doors = [Door(ld[0], ld[1], False)]
 
     def update(self, action):
-        # If game over and player pressed Start, restart the run and reset level counter
-        if action.is_start_game() and self.game_over:
-            # reset players health and state
-            for p in self.players.values():
-                p.health = Player.max_health
-                p.is_ready = False
-            # reset progression / counters backwards to lobby
-            self.game_over = False
-            self.game_over_achieved_levels = 0
-            self.levels_played = 0
-            self.current_level_index = -1
-            self.difficulty = DifficultySettings(0)
-            self.active_modifier = None
-            self.in_lobby = True
-            self.load_level(is_lobby=True)
+        # If black hole sequence finished and player pressed Start (Continue)
+        if action.is_start_game() and getattr(self, "black_hole_active", False):
+            if self.levels_played < 10:
+                # PROGRESS to next random level
+                self.black_hole_active = False
+                self.black_hole_start_time = 0.0
+                # load_level will increment levels_played to 6, 7, etc.
+                self.load_level(index=None)
+                return
+            else:
+                # FULL RESET if reached level 10
+                self._full_reset()
+                return
+
+        # If game over and player pressed Start
+        if action.is_start_game() and getattr(self, "game_over", False):
+            self._full_reset()
             return
 
         if action.is_start_game():
-            # start_game signal is used elsewhere; do not auto-start the level timer here
+            # start_game signal is used elsewhere
             pass
 
         # ── Debug shortcuts (only when game is running, not in lobby) ──────────
@@ -278,6 +295,22 @@ class Game_State:
                 player.position.y = int(sy)
                 player.speed.y = 0
 
+    def _full_reset(self):
+        # reset players health and state
+        for p in self.players.values():
+            p.health = Player.max_health
+            p.is_ready = False
+        # reset progression / counters backwards to lobby
+        self.game_over = False
+        self.black_hole_active = False
+        self.game_over_achieved_levels = 0
+        self.levels_played = 0
+        self.current_level_index = -1
+        self.difficulty = DifficultySettings(0)
+        self.active_modifier = None
+        self.in_lobby = True
+        self.load_level(is_lobby=True)
+
     def spawn_units(self):
         """Called regularly by server tick; update projectiles and warnings."""
         now_ms = time.time() * 1000.0
@@ -379,7 +412,7 @@ class Game_State:
             for i, line in enumerate(self.current_level.instructions):
                 text_surf = font.render(line, True, (255, 255, 255))
                 x = (surface.get_width() - text_surf.get_width()) // 2
-                y = 120 + i * 45
+                y = 220 + i * 45
                 surface.blit(text_surf, (x, y))
 
         # ── Level Name Popup and Modifier HUD badge ───────────────────────────
@@ -400,7 +433,7 @@ class Game_State:
 
         # ── Level counter (top-right) ───────────────────────────────────────
         try:
-            font = pygame.font.SysFont("Comic Sans MS", 24)
+            font = pygame.font.SysFont("Comic Sans MS", 32)
             if getattr(self, "current_level", None) is None:
                 level_text = "Welcome"
             else:
@@ -436,11 +469,11 @@ class Game_State:
                     ]
                     pygame.draw.polygon(surf, color, points)
 
-                heart_size = 14
-                gap = 6
+                heart_size = 24
+                gap = 10
                 # start drawing under the level text
                 start_x = surface.get_width() - margin
-                start_y = y + txt_surf.get_height() + 8
+                start_y = y + txt_surf.get_height() + 12
                 # draw hearts right-to-left
                 for i in range(hearts_total):
                     hx = start_x - (i * (heart_size + gap)) - heart_size
@@ -473,18 +506,18 @@ class Game_State:
             popup_surf.set_alpha(fade_alpha)
             
         x = (surface.get_width() - popup_w) // 2
-        y = 40
+        y = 110
         surface.blit(popup_surf, (x, y))
 
     def _draw_modifier_badge(self, surface, modifier, fade_alpha=255):
         """Draw a small badge in the top-left corner showing the active modifier."""
         if fade_alpha <= 0: return
         
-        padding   = 8
-        badge_x   = 10
-        badge_y   = 10
+        padding   = 12
+        badge_x   = 12
+        badge_y   = 12
 
-        font_big = pygame.font.SysFont("Comic Sans MS", 18, bold=True)
+        font_big = pygame.font.SysFont("Comic Sans MS", 28, bold=True)
         label_surf = font_big.render(f"⚠ {modifier.name}", True, (255, 255, 255))
 
         badge_w = label_surf.get_width() + padding * 2
