@@ -80,6 +80,7 @@ def main(name, port, host):
     prev_on_ground = True
     music_volume = 0.5
     jump_volume = 0.3
+    last_jump_test_time = 0
     MUSIC_VOL_STEP = 0.05
 
     font = pygame.font.SysFont('Comic Sans MS', 48)
@@ -298,7 +299,13 @@ def main(name, port, host):
                             black_hole_menu_active = False
                             game_state = None
                 elif in_pause_menu:
-                    options = ["Resume", "Settings", "Quit"] if pause_menu_state == "main" else ["Back"]
+                    if pause_menu_state == "main":
+                        options = ["Resume", "Settings", "Quit"]
+                    elif pause_menu_state == "settings":
+                        options = ["Music Volume", "Jump Volume", "Back"]
+                    else:
+                        options = ["Back"]
+                        
                     if event.key in (pygame.K_UP, pygame.K_w):
                         pause_selected_index = (pause_selected_index - 1) % len(options)
                     elif event.key in (pygame.K_DOWN, pygame.K_s):
@@ -321,9 +328,11 @@ def main(name, port, host):
                                 just_started = False
                                 game_state = None
                         elif pause_menu_state == "settings":
-                            if pause_selected_index == 0: # Back
+                            # 0: Music, 1: Jump, 2: Back
+                            if pause_selected_index == 2: # Back
                                 pause_menu_state = "main"
                                 pause_selected_index = 0
+                            # Sliders are handled by arrows/mouse, so no action on Enter for them.
 
             # ── DEBUG shortcuts (F-keys, only while in-game) ────────────────
             if started and event.type == pygame.KEYDOWN and game_state and not getattr(game_state, "game_over", False) and not getattr(game_state, "in_lobby", False):
@@ -347,7 +356,13 @@ def main(name, port, host):
                     debug_command = None
             
             if not started and event.type == pygame.KEYDOWN:
-                options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"] if main_menu_state == "main" else ["Back"]
+                if main_menu_state == "main":
+                    options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
+                elif main_menu_state == "settings":
+                    options = ["Music Volume", "Jump Volume", "Back"]
+                else:
+                    options = ["Back"]
+                    
                 if event.key in (pygame.K_UP, pygame.K_w):
                     main_selected_index = (main_selected_index - 1) % len(options)
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
@@ -360,19 +375,47 @@ def main(name, port, host):
                         elif main_selected_index == 3: main_menu_state = "credits"; main_selected_index = 0
                         elif main_selected_index == 4: running = False
                     else:
-                        if main_selected_index == 0: main_menu_state = "main"; main_selected_index = 0
+                        if main_menu_state == "settings":
+                            if main_selected_index == 2: # Back
+                                main_menu_state = "main"; main_selected_index = 0
+                        else:
+                            if main_selected_index == 0: main_menu_state = "main"; main_selected_index = 0
 
             # volume controls (global, works on start screen and in-game)
             if event.type == pygame.KEYDOWN:
                 try:
+                    # Volume keys (+/-) affect whichever slider is "selected" or just music if not in settings
+                    current_sel = -1
+                    if main_menu_state == "settings": current_sel = main_selected_index
+                    elif in_pause_menu and pause_menu_state == "settings": current_sel = pause_selected_index
+                    
                     if event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
-                        music_volume = max(0.0, music_volume - MUSIC_VOL_STEP)
-                        if sound_mgr is not None:
-                            sound_mgr.set_music_volume(music_volume)
+                        if current_sel == 1: # Jump
+                            jump_volume = max(0.0, jump_volume - MUSIC_VOL_STEP)
+                        else: # Default/Music
+                            music_volume = max(0.0, music_volume - MUSIC_VOL_STEP)
                     elif event.key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
-                        music_volume = min(1.0, music_volume + MUSIC_VOL_STEP)
-                        if sound_mgr is not None:
-                            sound_mgr.set_music_volume(music_volume)
+                        if current_sel == 1: # Jump
+                            jump_volume = min(1.0, jump_volume + MUSIC_VOL_STEP)
+                        else: # Music
+                            music_volume = min(1.0, music_volume + MUSIC_VOL_STEP)
+                    
+                    # Apply to hardware
+                    if sound_mgr: sound_mgr.set_music_volume(music_volume)
+                    if jump_sound: jump_sound.set_volume(jump_volume)
+                    
+                    # Left/Right keys for sliders while in settings
+                    if (main_menu_state == "settings" or (in_pause_menu and pause_menu_state == "settings")):
+                        if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                            delta = -0.05 if event.key == pygame.K_LEFT else 0.05
+                            if (main_menu_state == "settings" and main_selected_index == 0) or (in_pause_menu and pause_selected_index == 0):
+                                music_volume = max(0.0, min(1.0, music_volume + delta))
+                                if sound_mgr: sound_mgr.set_music_volume(music_volume)
+                            elif (main_menu_state == "settings" and main_selected_index == 1) or (in_pause_menu and pause_selected_index == 1):
+                                jump_volume = max(0.0, min(1.0, jump_volume + delta))
+                                if jump_sound: jump_sound.set_volume(jump_volume)
+                                # Play test sound
+                                if jump_sound: jump_sound.play()
                 except Exception:
                     pass
             # If game over, allow clicking the Play Again button (stretch scaling)
@@ -471,7 +514,11 @@ def main(name, port, host):
                 game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
 
             elif main_menu_state == "settings":
-                vol_text = small_font.render(f"Music Volume: {int(music_volume*100)}%", True, (255, 255, 255))
+                # Header logic (0: Music, 1: Jump, 2: Back)
+                m_color = (255, 255, 100) if main_selected_index == 0 else (255, 255, 255)
+                j_color = (255, 255, 100) if main_selected_index == 1 else (255, 255, 255)
+                
+                vol_text = small_font.render(f"Music Volume: {int(music_volume*100)}%", True, m_color)
                 game_surface.blit(vol_text, vol_text.get_rect(center=(game_w // 2, game_h // 2 - 100)))
                 
                 # Draw Music Volume Slider
@@ -481,9 +528,9 @@ def main(name, port, host):
                 pygame.draw.line(game_surface, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
                 filled_w = int(music_volume * slider_w)
                 pygame.draw.line(game_surface, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
-                pygame.draw.circle(game_surface, (255, 255, 100), (slider_x + filled_w, slider_y), 20)
+                pygame.draw.circle(game_surface, m_color, (slider_x + filled_w, slider_y), 20)
 
-                j_vol_text = small_font.render(f"Jump Volume: {int(jump_volume*100)}%", True, (255, 255, 255))
+                j_vol_text = small_font.render(f"Jump Volume: {int(jump_volume*100)}%", True, j_color)
                 game_surface.blit(j_vol_text, j_vol_text.get_rect(center=(game_w // 2, game_h // 2 + 20)))
                 
                 # Draw Jump Volume Slider
@@ -491,10 +538,10 @@ def main(name, port, host):
                 pygame.draw.line(game_surface, (100, 100, 100), (slider_x, j_slider_y), (slider_x + slider_w, j_slider_y), 12)
                 j_filled_w = int(jump_volume * slider_w)
                 pygame.draw.line(game_surface, (200, 200, 200), (slider_x, j_slider_y), (slider_x + j_filled_w, j_slider_y), 12)
-                pygame.draw.circle(game_surface, (255, 255, 100), (slider_x + j_filled_w, j_slider_y), 20)
+                pygame.draw.circle(game_surface, j_color, (slider_x + j_filled_w, j_slider_y), 20)
 
-                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
-                opt_surf = font.render("Back", True, color)
+                b_color = (255, 255, 100) if main_selected_index == 2 else (255, 255, 255)
+                opt_surf = font.render("Back", True, b_color)
                 game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
             elif main_menu_state == "credits":
                 title = font.render("Game made by:", True, (255, 255, 255))
@@ -737,14 +784,23 @@ def main(name, port, host):
                     
                 if slider_x - 30 <= gx <= slider_x + slider_w + 30:
                     fraction = (gx - slider_x) / slider_w
-                    if slider_y - 40 <= gy <= slider_y + 40:
+                    if slider_y - 60 <= gy <= slider_y + 60:
                         music_volume = max(0.0, min(1.0, fraction))
+                        if main_menu_state == "settings": main_selected_index = 0
+                        elif in_pause_menu and pause_menu_state == "settings": pause_selected_index = 0
                         try:
                             if sound_mgr is not None: sound_mgr.set_music_volume(music_volume)
                         except Exception:
                             pass
-                    elif j_slider_y - 40 <= gy <= j_slider_y + 40:
-                        jump_volume = max(0.0, min(1.0, fraction))
+                    elif j_slider_y - 60 <= gy <= j_slider_y + 60:
+                        new_vol = max(0.0, min(1.0, fraction))
+                        if abs(new_vol - jump_volume) > 0.01:
+                            if jump_sound and time.time() - last_jump_test_time > 0.15:
+                                jump_sound.play()
+                                last_jump_test_time = time.time()
+                        jump_volume = new_vol
+                        if main_menu_state == "settings": main_selected_index = 1
+                        elif in_pause_menu and pause_menu_state == "settings": pause_selected_index = 1
                         if jump_sound:
                             jump_sound.set_volume(jump_volume)
 
@@ -768,7 +824,10 @@ def main(name, port, host):
                     opt_surf = p_small.render(opt, True, color)
                     pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 80 - 80)))
             elif pause_menu_state == "settings":
-                vol_text2 = p_smaller.render(f"Music Volume: {int(music_volume*100)}%", True, (220, 220, 220))
+                m_color = (255, 255, 100) if pause_selected_index == 0 else (220, 220, 220)
+                j_color = (255, 255, 100) if pause_selected_index == 1 else (220, 220, 220)
+                
+                vol_text2 = p_smaller.render(f"Music Volume: {int(music_volume*100)}%", True, m_color)
                 pause_overlay.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 100)))
                 
                 # Draw Music Volume Slider
@@ -778,9 +837,9 @@ def main(name, port, host):
                 pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
                 filled_w = int(music_volume * slider_w)
                 pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
-                pygame.draw.circle(pause_overlay, (255, 255, 100), (slider_x + filled_w, slider_y), 18)
+                pygame.draw.circle(pause_overlay, m_color, (slider_x + filled_w, slider_y), 18)
 
-                j_vol_text2 = p_smaller.render(f"Jump Volume: {int(jump_volume*100)}%", True, (220, 220, 220))
+                j_vol_text2 = p_smaller.render(f"Jump Volume: {int(jump_volume*100)}%", True, j_color)
                 pause_overlay.blit(j_vol_text2, j_vol_text2.get_rect(center=(game_w // 2, game_h // 2 + 20)))
                 
                 # Draw Jump Volume Slider
@@ -788,10 +847,10 @@ def main(name, port, host):
                 pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, j_slider_y), (slider_x + slider_w, j_slider_y), 12)
                 j_filled_w = int(jump_volume * slider_w)
                 pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, j_slider_y), (slider_x + j_filled_w, j_slider_y), 12)
-                pygame.draw.circle(pause_overlay, (255, 255, 100), (slider_x + j_filled_w, j_slider_y), 18)
+                pygame.draw.circle(pause_overlay, j_color, (slider_x + j_filled_w, j_slider_y), 18)
 
-                color = (255, 255, 100) if 0 == pause_selected_index else (200, 200, 200)
-                opt_surf = p_small.render("Back", True, color)
+                b_color = (255, 255, 100) if 2 == pause_selected_index else (200, 200, 200)
+                opt_surf = p_small.render("Back", True, b_color)
                 pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + 180)))
 
             game_surface.blit(pause_overlay, (0, 0))
