@@ -2,12 +2,17 @@ import pygame
 import os
 
 class Platform:
+    """
+    Represents a solid rectangular platform in the game world.
+    Supports either a plain colored rectangle or a repeating texture image.
+    """
     color = (150, 150, 150)
 
     # Class-level texture cache: path → pygame.Surface
     _texture_cache: dict = {}
 
     def __init__(self, x, y, width, height, texture_path=None):
+        """Initializes a platform with given bounds and optional texture path."""
         self.rect = pygame.Rect(x, y, width, height)
         self._texture_path = texture_path
         self._tiled_surface = None  # built lazily
@@ -40,6 +45,7 @@ class Platform:
 
     # ── Public ────────────────────────────────────────────────────────────────
     def draw(self, surface):
+        """Draws the tiled texture if available; otherwise falls back to a plain filled rect."""
         if self._texture_path:
             if self._tiled_surface is None:
                 self._build_tiled()

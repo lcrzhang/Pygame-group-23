@@ -285,66 +285,96 @@ class Game_State:
         name = action.get_name()
         
         if getattr(action, 'disconnect', False):
-            if name in self.players:
-                p = self.players.pop(name)
-                if p in self.units:
-                    self.units.remove(p)
-                    
-                if not self.players:
-                    self._full_reset()
-                    return
-                    
-                # Check black hole readiness again in case they were the last holdout
-                if getattr(self, "black_hole_active", False) and self.players:
-                    if all(p.is_ready for p in self.players.values()):
-                        if self.levels_played < 10:
-                            self.black_hole_active = False
-                            self.black_hole_start_time = 0.0
-                            for px in self.players.values(): px.is_ready = False
-                            self.load_level(index=None)
-                        else:
-                            self._full_reset()
+            self._handle_disconnect(name)
             return
 
-        # If black hole sequence finished and player pressed Start (Continue)
-        if action.is_start_game() and getattr(self, "black_hole_active", False):
+        if action.is_start_game():
+            self._handle_game_start(name)
+            return
+
+        # ── Debug shortcuts (only when game is running, not in lobby) ──────────
+        self._handle_debug_commands(action, name)
+
+        if action.get_set_pause() is not None:
+            self.is_paused = action.get_set_pause() if len(self.players) <= 1 else False
+
+        # If game is over or paused, ignore movement inputs
+        if self.game_over or getattr(self, "is_paused", False):
+            return
+
+        player = self._sync_player_state(action, name)
+        
+        if getattr(player, "is_ready", False) and getattr(self, "in_lobby", False):
+            return
+
+        # Core Movement
+        player.apply_action(action, self.current_modifiers)
+        if self.active_modifier and getattr(self.active_modifier, "inverted_controls", False):
+            player.speed.x -= 2 * (action.is_right() - action.is_left()) * self.current_modifiers.acceleration
+        player.update(self.platforms, self.world_size, self.current_modifiers)
+        
+        # Spectators don't interact with the world
+        if player.health <= 0 and not getattr(self, "in_lobby", False):
+            return
+        
+        player_rect = pygame.Rect(player.position.x, player.position.y, Player.width, Player.height)
+        
+        # Doors & Progressions
+        if self._check_door_collisions(player, player_rect):
+            return
+            
+        # Hazards
+        if self._check_hazard_collisions(player_rect):
+            player.take_damage(1)
+            self._handle_player_death_or_respawn(player)
+
+    def _handle_disconnect(self, name):
+        """Processes a player disconnecting from the server, cleaning up their entity."""
+        if name in self.players:
+            p = self.players.pop(name)
+            if p in self.units:
+                self.units.remove(p)
+                
+            if not self.players:
+                self._full_reset()
+                return
+                
+            if getattr(self, "black_hole_active", False) and self.players:
+                if all(p.is_ready for p in self.players.values()):
+                    if self.levels_played < 10:
+                        self.black_hole_active = False
+                        self.black_hole_start_time = 0.0
+                        for px in self.players.values(): px.is_ready = False
+                        self.load_level(index=None)
+                    else:
+                        self._full_reset()
+
+    def _handle_game_start(self, name):
+        """Processes a player pressing the start/ready button."""
+        if getattr(self, "black_hole_active", False):
             if name in self.players:
                 self.players[name].is_ready = True
             
             if self.players and all(p.is_ready for p in self.players.values()):
                 if self.levels_played < 10:
-                    # PROGRESS to next random level
                     self.black_hole_active = False
                     self.black_hole_start_time = 0.0
                     for px in self.players.values(): px.is_ready = False
                     self.load_level(index=None)
-                    return
                 else:
-                    # FULL RESET if reached level 10
                     self._full_reset()
-                    return
-            return
-
-        # If game over and player pressed Start
-        if action.is_start_game() and getattr(self, "game_over", False):
+        elif getattr(self, "game_over", False):
             self._full_reset()
-            return
 
-        if action.is_start_game():
-            # start_game signal is used elsewhere
-            pass
-
-        # ── Debug shortcuts (only when game is running, not in lobby) ──────────
+    def _handle_debug_commands(self, action, name):
+        """Processes debugging inputs like skipping levels or triggering modifiers."""
         debug_cmd = getattr(action, "debug_command", None)
         if debug_cmd and not getattr(self, "in_lobby", False):
             if debug_cmd == "skip_timer":
-                # Set timer to 0 so the door spawns on this tick's tick_timer call
                 self.timer = 0.01
             elif debug_cmd == "next_level":
                 self.load_level()
-                return
             elif debug_cmd == "kill_player":
-                name = action.get_name()
                 if name in self.players:
                     self.players[name].health = 0
             elif debug_cmd.startswith("set_modifier:"):
@@ -366,108 +396,71 @@ class Game_State:
                         )
                         break
 
-        if action.get_set_pause() is not None:
-            if len(self.players) <= 1:
-                self.is_paused = action.get_set_pause()
-            else:
-                self.is_paused = False
-
-        # if game is over or paused ignore most inputs
-        if self.game_over or getattr(self, "is_paused", False):
-            return
-
-        name = action.get_name()
-        if not name in self.players: # if the name is not seen before
-            player = Player(self.world_size, name) # create a new player
+    def _sync_player_state(self, action, name):
+        """Ensures the player exists and syncs basic state like color."""
+        if not name in self.players:
+            player = Player(self.world_size, name)
             player.is_ready = False
             if not getattr(self, "in_lobby", False):
-                # Joined mid-game -> start as spectator
-                player.health = 0
-            self.units.append(player)              # add to units
-            self.players[name] = player            # add to players too for fast lookup by name 
+                player.health = 0  # Mid-game joins are spectators
+            self.units.append(player)
+            self.players[name] = player
+        
         player = self.players[name]
         player.color = action.get_color()
-        
-        # Don't apply actions if in lobby and marked as ready
-        if getattr(player, "is_ready", False) and getattr(self, "in_lobby", False):
-            return
+        return player
 
-        player.apply_action(action, self.current_modifiers)
-        # Inverted controls modifier: flip horizontal speed delta if active
-        if self.active_modifier and getattr(self.active_modifier, "inverted_controls", False):
-            player.speed.x -= 2 * (action.is_right() - action.is_left()) * self.current_modifiers.acceleration
-        player.update(self.platforms, self.world_size, self.current_modifiers)
-        
-        # Spectators don't interact with the world, but can move as ghosts
-        if player.health <= 0 and not getattr(self, "in_lobby", False):
-            return
-        
-        # Check door collisions
-        player_rect = pygame.Rect(player.position.x, player.position.y, Player.width, Player.height)
+    def _check_door_collisions(self, player, player_rect):
+        """Evaluates if a player has reached the exit door to progress the level."""
         for door in self.doors:
             if player_rect.colliderect(door.rect):
                 if getattr(self, "in_lobby", False):
                     player.is_ready = True
-                    player.position.y = -1000 # Teleport away visually
+                    player.position.y = -1000 
                     player.speed.y = 0
                     
-                    # Check if everyone is ready (all active players connected have is_ready)
                     if all(p.is_ready for p in self.players.values()):
                         self.in_lobby = False
                         for p in self.players.values():
                             p.is_ready = False
-                            p.health = Player.max_health # revive mid-lobby spectators if needed
+                            p.health = Player.max_health
                         self.load_level(index=0)
                 else:
-                    # Trigger a new sequential/random level and teleport everyone
                     self.load_level()
-                break
-                
-        hurt_player = False
+                return True
+        return False
 
-        # Check kill zone collisions
+    def _check_hazard_collisions(self, player_rect):
+        """Evaluates if a player's hitbox overlaps with any kill zones or projectiles."""
         if hasattr(self.current_level, "kill_zones") and self.current_level.kill_zones:
             for kz in self.current_level.kill_zones:
                 if player_rect.colliderect(pygame.Rect(*kz)):
-                    hurt_player = True
-                    break
+                    return True
                 
-        # Check projectile collisions
-        if not hurt_player:
-            for proj in list(self.projectiles):
-                if player_rect.colliderect(proj.get_rect()):
-                    # Hit by a projectile: remove the projectile
-                    try:
-                        self.projectiles.remove(proj)
-                    except ValueError:
-                        pass
-                    hurt_player = True
-                    break
+        for proj in list(self.projectiles):
+            if player_rect.colliderect(proj.get_rect()):
+                try: self.projectiles.remove(proj)
+                except ValueError: pass
+                return True
+        return False
 
-        if hurt_player:
-            player.take_damage(1)
-
-            if player.health <= 0:
-                # Player died. Check if *everyone* is dead.
-                if all(p.health <= 0 for p in self.players.values()):
-                    self.game_over = True
-                    # record how many levels the player completed (at least 1)
-                    self.game_over_achieved_levels = max(1, self.levels_played)
-                    # stop hazards/timer
-                    self.timer_started = False
-                    self.projectiles.clear()
-                    self.warnings.clear()
-            else:
-                # Respawn at the current level's spawn point (fallback to center)
-                try:
-                    sx, sy = self.current_level.spawn
-                except Exception:
-                    # fallback positions if no current level set
-                    sx = int(self.world_size.x // 2) if hasattr(self.world_size, "x") else int(self.world_size[0] // 2)
-                    sy = 50
-                player.position.x = int(sx)
-                player.position.y = int(sy)
-                player.speed.y = 0
+    def _handle_player_death_or_respawn(self, player):
+        """Evaluates if the entire team is dead (Game Over) or respawns the player."""
+        if player.health <= 0:
+            if all(p.health <= 0 for p in self.players.values()):
+                self.game_over = True
+                self.game_over_achieved_levels = max(1, self.levels_played)
+                self.timer_started = False
+                self.projectiles.clear()
+                self.warnings.clear()
+        else:
+            try: sx, sy = self.current_level.spawn
+            except Exception:
+                sx = int(self.world_size.x // 2) if hasattr(self.world_size, "x") else int(self.world_size[0] // 2)
+                sy = 50
+            player.position.x = int(sx)
+            player.position.y = int(sy)
+            player.speed.y = 0
 
     def _full_reset(self):
         # reset players health and state
@@ -584,51 +577,51 @@ class Game_State:
         for unit in self.units:
             unit.draw(surface, asset_cache, name, is_viewer_dead, self.active_modifier)
 
-        # ── Draw kill zones ───────────────────────────────────────────────────
+        self._draw_kill_zones(surface)
+        self._draw_lobby_instructions(surface)
+        
+        time_elapsed = 60.0 - self.timer
+        fade_alpha = 255 if time_elapsed < 2.0 else int(255 * (1.0 - (time_elapsed - 2.0) / 1.5)) if time_elapsed < 3.5 else 0
+        self._draw_level_hud(surface, name, fade_alpha)
+
+    def _draw_kill_zones(self, surface):
+        """Draws lava/spikes/kill zones to the surface."""
         if hasattr(self, "current_level") and self.current_level and self.current_level.kill_zones:
             is_ice = getattr(self.current_level, "theme", "") == "ice"
             for (kx, ky, kw, kh) in self.current_level.kill_zones:
                 if is_ice:
-                    # Draw a row of spike triangles filling the kill zone
                     spike_w = 40
                     spike_h = min(kh, 60)
                     spike_color_dark  = (40, 100, 200)   # darker outline
                     num_spikes = kw // spike_w + 1
 
-                    # Try to texture spikes with the level's platform tile
                     platform_tex_path = getattr(self.current_level, "platform_image", None)
                     spike_tex = self.platforms[0]._load_texture(platform_tex_path) if (platform_tex_path and self.platforms) else None
 
                     if spike_tex is not None:
-                        # 1. Tile the texture across the full kill zone
                         tw, th = spike_tex.get_size()
                         tiled_surf = pygame.Surface((kw, kh), pygame.SRCALPHA)
                         for ty in range(0, kh, th):
                             for tx in range(0, kw, tw):
                                 tiled_surf.blit(spike_tex, (tx, ty))
-                        # 2. Draw spike shapes as opaque white on a transparent mask
+                        
                         mask_surf = pygame.Surface((kw, kh), pygame.SRCALPHA)
                         mask_surf.fill((0, 0, 0, 0))
                         for i in range(num_spikes):
-                            sx = i * spike_w  # relative to kill zone origin
+                            sx = i * spike_w
                             pygame.draw.polygon(mask_surf, (255, 255, 255, 255), [
-                                (sx, spike_h),
-                                (sx + spike_w // 2, 0),
-                                (sx + spike_w, spike_h),
+                                (sx, spike_h), (sx + spike_w // 2, 0), (sx + spike_w, spike_h),
                             ])
-                        # 3. Multiply: only show texture where spikes are
+                            
                         tiled_surf.blit(mask_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
                         surface.blit(tiled_surf, (kx, ky))
-                        # 4. Draw dark outlines on top
+                        
                         for i in range(num_spikes):
                             sx = kx + i * spike_w
                             pygame.draw.polygon(surface, spike_color_dark, [
-                                (sx, ky + spike_h),
-                                (sx + spike_w // 2, ky),
-                                (sx + spike_w, ky + spike_h),
+                                (sx, ky + spike_h), (sx + spike_w // 2, ky), (sx + spike_w, ky + spike_h),
                             ], 2)
                     else:
-                        # Fallback: plain blue triangles
                         spike_color = (80, 160, 255)
                         for i in range(num_spikes):
                             sx = kx + i * spike_w
@@ -639,10 +632,10 @@ class Game_State:
                             pygame.draw.polygon(surface, spike_color, [bl, (tip_x, tip_y), br])
                             pygame.draw.polygon(surface, spike_color_dark, [bl, (tip_x, tip_y), br], 2)
                 else:
-                    # Generic kill zone: red outline
                     pygame.draw.rect(surface, (220, 50, 50), (kx, ky, kw, kh), 3)
 
-        # ── Lobby Instructions Text ───────────────────────────────────────────
+    def _draw_lobby_instructions(self, surface):
+        """Draws the instructional text presented in the lobby."""
         if getattr(self, "current_level", None) and hasattr(self.current_level, "instructions") and self.current_level.instructions:
             font = pygame.font.SysFont("Comic Sans MS", 28)
             for i, line in enumerate(self.current_level.instructions):
@@ -651,30 +644,19 @@ class Game_State:
                 y = 220 + i * 45
                 surface.blit(text_surf, (x, y))
 
-        # ── Level Name Popup and Modifier HUD badge ───────────────────────────
-        # Fading logic: show fully for 2 seconds, fade out over 1.5 seconds
-        time_elapsed = 60.0 - self.timer
-        if time_elapsed < 2.0:
-            fade_alpha = 255
-        elif time_elapsed < 3.5:
-            fade_alpha = int(255 * (1.0 - (time_elapsed - 2.0) / 1.5))
-        else:
-            fade_alpha = 0
-
+    def _draw_level_hud(self, surface, name, fade_alpha):
+        """Draws the level counter, health hearts, and modifier badges."""
         if getattr(self, "current_level", None) and fade_alpha > 0:
             self._draw_level_name_popup(surface, self.current_level.name, fade_alpha)
 
         if self.active_modifier is not None and fade_alpha > 0:
             self._draw_modifier_badge(surface, self.active_modifier, fade_alpha)
 
-        # ── Level counter (top-right) ───────────────────────────────────────
         try:
             font = pygame.font.SysFont("Comic Sans MS", 32)
             if getattr(self, "current_level", None) is None:
                 level_text = "Welcome"
             else:
-                # show played level number starting at 1
-                # use levels_played so the counter always starts at 1 for the first entered level
                 level_text = f"Level {max(1, self.levels_played)}"
             txt_surf = font.render(level_text, True, (255, 255, 255))
             margin = 10
@@ -684,20 +666,16 @@ class Game_State:
         except Exception:
             pass
 
-        # ── Health hearts (top-right, below level counter) ───────────────────
         try:
             if name in self.players:
                 p = self.players[name]
                 hearts_total = Player.max_health
                 hearts_current = getattr(p, "health", hearts_total)
 
-                # heart drawing helper
                 def _draw_heart(surf, cx, cy, size, color=(220, 30, 30)):
                     r = size // 4
-                    # two circles
                     pygame.draw.circle(surf, color, (int(cx - r), int(cy - r)), r)
                     pygame.draw.circle(surf, color, (int(cx + r), int(cy - r)), r)
-                    # bottom triangle / polygon
                     points = [
                         (int(cx - size // 2), int(cy - r)),
                         (int(cx + size // 2), int(cy - r)),
@@ -707,17 +685,14 @@ class Game_State:
 
                 heart_size = 24
                 gap = 10
-                # start drawing under the level text
                 start_x = surface.get_width() - margin
                 start_y = y + txt_surf.get_height() + 12
-                # draw hearts right-to-left
                 for i in range(hearts_total):
                     hx = start_x - (i * (heart_size + gap)) - heart_size
                     hy = start_y
                     if i < hearts_current:
                         _draw_heart(surface, hx + heart_size/2, hy + heart_size/2, heart_size, (220,30,30))
                     else:
-                        # draw dimmed heart
                         _draw_heart(surface, hx + heart_size/2, hy + heart_size/2, heart_size, (80,80,80))
         except Exception:
             pass

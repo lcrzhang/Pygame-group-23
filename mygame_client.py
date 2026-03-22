@@ -10,13 +10,12 @@ from SoundManager import SoundManager
 from core.Action import Action
 from core.Game_State import Game_State
 from entities.Door import Door
+from ui.MenuRenderer import MenuRenderer
+from network.NetworkClient import NetworkClient
 
 def main(name, port, host):
     # connect to server
-    context = zmq.Context()
-    socket = context.socket(zmq.REQ)
-    socket.connect(f"tcp://{host}:{port}")
-    print(f"Connecting to port '{port}' of host '{host}'.")
+    network_client = NetworkClient(host, port)
 
     # start pygame
     pygame.init()
@@ -142,6 +141,14 @@ def main(name, port, host):
     main_selected_index = 0
     character_color = (255, 255, 255)
     debug_command = None   # Set by F-key shortcuts each frame
+    
+    # Initialize MenuRenderer
+    menu_fonts = {
+        'title': title_font,
+        'main': font,
+        'small': small_font
+    }
+    menu_renderer = MenuRenderer(game_w, game_h, menu_fonts)
 
     running = True
     play_again_clicked = False
@@ -184,8 +191,7 @@ def main(name, port, host):
                                 elif i == 1:
                                     try:
                                         d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
-                                        socket.send_pyobj(d_action)
-                                        game_state.apply_compressed_state(socket.recv_pyobj()) # clear response
+                                        network_client.send_disconnect_action(d_action)
                                     except Exception: pass
                                     started = False
                                     just_started = False
@@ -250,8 +256,7 @@ def main(name, port, host):
                                             in_pause_menu = False
                                             try:
                                                 d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
-                                                socket.send_pyobj(d_action)
-                                                game_state.apply_compressed_state(socket.recv_pyobj())
+                                                network_client.send_disconnect_action(d_action)
                                             except Exception: pass
                                             started = False
                                             just_started = False
@@ -291,8 +296,7 @@ def main(name, port, host):
                         elif black_hole_selected_index == 1:
                             try:
                                 d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
-                                socket.send_pyobj(d_action)
-                                game_state.apply_compressed_state(socket.recv_pyobj()) # clear response
+                                network_client.send_disconnect_action(d_action)
                             except Exception: pass
                             started = False
                             just_started = False
@@ -321,8 +325,7 @@ def main(name, port, host):
                                 in_pause_menu = False
                                 try:
                                     d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
-                                    socket.send_pyobj(d_action)
-                                    game_state.apply_compressed_state(socket.recv_pyobj())
+                                    network_client.send_disconnect_action(d_action)
                                 except Exception: pass
                                 started = False
                                 just_started = False
@@ -457,104 +460,13 @@ def main(name, port, host):
             game_surface.blit(overlay, (0, 0))
 
             if main_menu_state == "main":
-                if start_logo:
-                    logo_w = 220
-                    logo_h = int(start_logo.get_height() * (logo_w / start_logo.get_width()))
-                    scaled_logo = pygame.transform.smoothscale(start_logo, (logo_w, logo_h))
-                    game_surface.blit(scaled_logo, (game_w // 2 - logo_w // 2, 50))
-                
-                # Draw "Dodge Box" title
-                dodge_shadow = title_font.render("Dodge Box", True, (50, 50, 50))
-                game_surface.blit(dodge_shadow, dodge_shadow.get_rect(center=(game_w // 2 + 8, 308)))
-                
-                dodge_title = title_font.render("Dodge Box", True, (255, 255, 255))
-                game_surface.blit(dodge_title, dodge_title.get_rect(center=(game_w // 2, 300)))
-
-                options = ["Start Game", "Customize Character", "Settings", "Credits", "Quit"]
-                for i, opt in enumerate(options):
-                    bx, by = game_w // 2, 500 + i * 80
-                    color = (255, 255, 100) if i == main_selected_index else (255, 255, 255)
-                    opt_surf = font.render(opt, True, color)
-                    game_surface.blit(opt_surf, opt_surf.get_rect(center=(bx, by)))
+                menu_renderer.draw_main_menu(game_surface, start_logo, main_selected_index)
             elif main_menu_state == "customize":
-                title_surf = small_font.render("Select Character Color", True, (255, 255, 255))
-                game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, 400)))
-                
-                colors = [
-                    ((255, 105, 180), "Pink"),
-                    ((255, 0, 0), "Red"),
-                    ((0, 0, 255), "Blue"),
-                    ((255, 255, 0), "Yellow"),
-                    ((0, 255, 0), "Green"),
-                    ((0, 0, 0), "Black"),
-                    ((255, 255, 255), "White")
-                ]
-                
-                box_w, box_h = 100, 100
-                gap = 30
-                total_w = len(colors) * box_w + (len(colors) - 1) * gap
-                start_x = game_w // 2 - total_w // 2
-                start_y = 500
-                
-                for idx, (c_val, c_name) in enumerate(colors):
-                    bx = start_x + idx * (box_w + gap)
-                    rect = pygame.Rect(bx, start_y, box_w, box_h)
-                    pygame.draw.rect(game_surface, c_val, rect)
-                    if character_color == c_val:
-                        pygame.draw.rect(game_surface, (255, 255, 100), rect, 6) # highlight selected
-                    else:
-                        pygame.draw.rect(game_surface, (200, 200, 200), rect, 2)
-                        
-                # Demo character preview
-                prev_rect = pygame.Rect(game_w // 2 - 50, 680, 100, 100)
-                pygame.draw.rect(game_surface, character_color, prev_rect, 8)
-                
-                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
-                opt_surf = font.render("Back", True, color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
-
+                menu_renderer.draw_customize_menu(game_surface, character_color, main_selected_index)
             elif main_menu_state == "settings":
-                # Header logic (0: Music, 1: Jump, 2: Back)
-                m_color = (255, 255, 100) if main_selected_index == 0 else (255, 255, 255)
-                j_color = (255, 255, 100) if main_selected_index == 1 else (255, 255, 255)
-                
-                vol_text = small_font.render(f"Music Volume: {int(music_volume*100)}%", True, m_color)
-                game_surface.blit(vol_text, vol_text.get_rect(center=(game_w // 2, game_h // 2 - 100)))
-                
-                # Draw Music Volume Slider
-                slider_x = game_w // 2 - 300
-                slider_y = game_h // 2 - 60
-                slider_w = 600
-                pygame.draw.line(game_surface, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
-                filled_w = int(music_volume * slider_w)
-                pygame.draw.line(game_surface, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
-                pygame.draw.circle(game_surface, m_color, (slider_x + filled_w, slider_y), 20)
-
-                j_vol_text = small_font.render(f"Jump Volume: {int(jump_volume*100)}%", True, j_color)
-                game_surface.blit(j_vol_text, j_vol_text.get_rect(center=(game_w // 2, game_h // 2 + 20)))
-                
-                # Draw Jump Volume Slider
-                j_slider_y = game_h // 2 + 60
-                pygame.draw.line(game_surface, (100, 100, 100), (slider_x, j_slider_y), (slider_x + slider_w, j_slider_y), 12)
-                j_filled_w = int(jump_volume * slider_w)
-                pygame.draw.line(game_surface, (200, 200, 200), (slider_x, j_slider_y), (slider_x + j_filled_w, j_slider_y), 12)
-                pygame.draw.circle(game_surface, j_color, (slider_x + j_filled_w, j_slider_y), 20)
-
-                b_color = (255, 255, 100) if main_selected_index == 2 else (255, 255, 255)
-                opt_surf = font.render("Back", True, b_color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
+                menu_renderer.draw_settings_menu(game_surface, music_volume, jump_volume, main_selected_index)
             elif main_menu_state == "credits":
-                title = font.render("Game made by:", True, (255, 255, 255))
-                game_surface.blit(title, title.get_rect(center=(game_w // 2, game_h // 2 - 180)))
-
-                names = ["Patrick Lira van de Meent", "Leo Zhang ", "Luuk van der Duim ", "Jelle Zegers", "soundtrack: Fun Time by Zambolino"]
-                for i, n in enumerate(names):
-                    n_surf = font.render(n, True, (200, 200, 255))
-                    game_surface.blit(n_surf, n_surf.get_rect(center=(game_w // 2, game_h // 2 - 60 + i * 80)))
-                
-                color = (255, 255, 100) if 0 == main_selected_index else (255, 255, 255)
-                opt_surf = font.render("Back", True, color)
-                game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
+                menu_renderer.draw_credits_menu(game_surface, main_selected_index)
             else:
                 msg = font.render(f"{main_menu_state.capitalize()} - Coming Soon!", True, (255, 255, 255))
                 game_surface.blit(msg, msg.get_rect(center=(game_w // 2, game_h // 2)))
@@ -566,7 +478,7 @@ def main(name, port, host):
             action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked or continue_playing_clicked, set_pause=in_pause_menu, color=character_color, debug_command=debug_command)
             just_started = False
             continue_playing_clicked = False
-            socket.send_pyobj(action) # send action
+            network_client.send_action(action) # send action
              
             # Draw background based on last received game_state (if any)
             if game_state and getattr(game_state, "current_level", None):
@@ -700,7 +612,7 @@ def main(name, port, host):
 
             # Receive new game_state from server (blocking until reply)
             try:
-                game_state.apply_compressed_state(socket.recv_pyobj())
+                game_state.apply_compressed_state(network_client.receive_game_state())
             except Exception:
                 # If receive fails, stop running
                 running = False
@@ -818,40 +730,9 @@ def main(name, port, host):
             pause_overlay.blit(title_surf, title_surf.get_rect(center=(game_w // 2, game_h // 4)))
             
             if pause_menu_state == "main":
-                options = ["Resume", "Settings", "Quit"]
-                for i, opt in enumerate(options):
-                    color = (255, 255, 100) if i == pause_selected_index else (200, 200, 200)
-                    opt_surf = p_small.render(opt, True, color)
-                    pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 80 - 80)))
+                menu_renderer.draw_pause_main(pause_overlay, pause_selected_index, p_small)
             elif pause_menu_state == "settings":
-                m_color = (255, 255, 100) if pause_selected_index == 0 else (220, 220, 220)
-                j_color = (255, 255, 100) if pause_selected_index == 1 else (220, 220, 220)
-                
-                vol_text2 = p_smaller.render(f"Music Volume: {int(music_volume*100)}%", True, m_color)
-                pause_overlay.blit(vol_text2, vol_text2.get_rect(center=(game_w // 2, game_h // 2 - 100)))
-                
-                # Draw Music Volume Slider
-                slider_x = game_w // 2 - 225
-                slider_y = game_h // 2 - 40
-                slider_w = 450
-                pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, slider_y), (slider_x + slider_w, slider_y), 12)
-                filled_w = int(music_volume * slider_w)
-                pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, slider_y), (slider_x + filled_w, slider_y), 12)
-                pygame.draw.circle(pause_overlay, m_color, (slider_x + filled_w, slider_y), 18)
-
-                j_vol_text2 = p_smaller.render(f"Jump Volume: {int(jump_volume*100)}%", True, j_color)
-                pause_overlay.blit(j_vol_text2, j_vol_text2.get_rect(center=(game_w // 2, game_h // 2 + 20)))
-                
-                # Draw Jump Volume Slider
-                j_slider_y = game_h // 2 + 80
-                pygame.draw.line(pause_overlay, (100, 100, 100), (slider_x, j_slider_y), (slider_x + slider_w, j_slider_y), 12)
-                j_filled_w = int(jump_volume * slider_w)
-                pygame.draw.line(pause_overlay, (200, 200, 200), (slider_x, j_slider_y), (slider_x + j_filled_w, j_slider_y), 12)
-                pygame.draw.circle(pause_overlay, j_color, (slider_x + j_filled_w, j_slider_y), 18)
-
-                b_color = (255, 255, 100) if pause_selected_index == 2 else (255, 255, 255)
-                opt_surf = p_small.render("Back", True, b_color)
-                pause_overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
+                menu_renderer.draw_pause_settings(pause_overlay, music_volume, jump_volume, pause_selected_index, p_smaller, p_small)
 
             game_surface.blit(pause_overlay, (0, 0))
 

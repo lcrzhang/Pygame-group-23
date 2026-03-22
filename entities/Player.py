@@ -1,11 +1,16 @@
 import pygame
 
 class Player:
+    """
+    Represents a player entity in the game world. 
+    Handles physics velocity, position, health, and applies input actions to movement.
+    """
     width = 40
     height = 40
     max_health = 10
         
     def __init__(self, world_size, name):
+        """Initializes a new player at the center of the world."""
         self.name = name
         self.color = (255, 255, 255)
         self.position = pygame.Vector2(world_size.x // 2, world_size.y // 2)
@@ -20,9 +25,14 @@ class Player:
         return f"position: {self.position} speed: {self.speed}"
 
     def get_position(self):
+        """Returns the current absolute (x, y) Vector2 position of the player."""
         return self.position
     
     def apply_action(self, action, modifiers=None):
+        """
+        Parses a client Action object and applies horizontal and vertical impulses 
+        to the player's speed vector, adhering to the active physics modifiers.
+        """
         from levels.Levels import PlayerModifiers
         if modifiers is None:
             modifiers = PlayerModifiers()
@@ -65,6 +75,10 @@ class Player:
             self.speed.y = 4
 
     def update(self, platforms, world_size, modifiers=None):
+        """
+        Applies gravity, friction, and calculates collisions against platforms and the 
+        world boundaries to update the player's final position for the current tick.
+        """
         from levels.Levels import PlayerModifiers
         if modifiers is None:
             modifiers = PlayerModifiers()

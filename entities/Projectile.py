@@ -40,9 +40,11 @@ class Projectile:
         self.shape = random.choice(['rect', 'circle', 'triangle'])
 
     def update(self, world_size):
+        """Moves the projectile by its current speed vector."""
         self.position += self.speed
 
     def is_off_screen(self, world_size):
+        """Returns True if the projectile has moved completely outside the world bounds."""
         if self.position.x + self.width < 0 and self.speed.x < 0:
             return True
         if self.position.x > world_size.x and self.speed.x > 0:
@@ -54,9 +56,11 @@ class Projectile:
         return False
 
     def get_rect(self):
+        """Returns a pygame Rect representing the projectile's bounds for collision detection."""
         return pygame.Rect(self.position.x, self.position.y, self.width, self.height)
 
     def draw(self, surface):
+        """Draws the projectile as an image if available, or a colored polygon otherwise."""
         if self.image_path:
             img    = _get_image(self.image_path)
             scaled = pygame.transform.scale(img, (int(self.width), int(self.height)))

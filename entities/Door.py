@@ -1,6 +1,10 @@
 import pygame
 
 class Door:
+    """
+    Represents the exit door in a level.
+    Uses a globally cached texture to avoid reloading the image multiple times.
+    """
     color = (0, 255, 0)
     width = 50
     height = 80
@@ -22,10 +26,12 @@ class Door:
             cls._cached_texture = None
 
     def __init__(self, x, y, is_left_door):
+        """Initializes the door at the specified position. is_left_door determines texture flip."""
         self.rect = pygame.Rect(x, y, Door.width, Door.height)
         self.is_left_door = is_left_door
 
     def draw(self, surface):
+        """Draws the door texture if cached, otherwise falls back to a green outline."""
         if Door._cached_texture:
             img = Door._cached_texture
             if self.is_left_door:
