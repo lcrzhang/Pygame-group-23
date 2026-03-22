@@ -262,7 +262,7 @@ class Game_State:
 
     def tick_timer(self, delta_time):
         """Advance countdown timer (delta_time in seconds). Spawn door when timer reaches 0."""
-        if self.is_paused or self.game_over:
+        if not self.timer_started or getattr(self, "is_paused", False) or self.game_over:
             return
             
         if self.timer_started and self.timer > 0:

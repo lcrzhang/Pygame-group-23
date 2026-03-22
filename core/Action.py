@@ -38,6 +38,5 @@ class Action:
 
     def get_color(self):
         return self.color
-
     def is_disconnect(self):
         return self.disconnect
