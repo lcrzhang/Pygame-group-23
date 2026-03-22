@@ -54,7 +54,8 @@ class Game_State:
                 'hp': p.health,
                 'color': p.color,
                 'facing': p.facing_right,
-                'jumps': getattr(p, 'jumps_remaining', 0)
+                'jumps': getattr(p, 'jumps_remaining', 0),
+                'og': p.on_ground
             }
 
         # Dynamic projectiles
@@ -152,6 +153,7 @@ class Game_State:
             p.color = data['color']
             p.facing_right = data['facing']
             p.jumps_remaining = data['jumps']
+            p.on_ground = data.get('og', False)
 
         # Sync Projectiles (simpler to just recreate from info list)
         self.projectiles = []

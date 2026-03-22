@@ -76,7 +76,7 @@ def main(name, port, host):
     game_state = Game_State(pygame.Vector2(game_w, game_h))
     started = False
     just_started = False
-    prev_on_ground = True
+    prev_jumps = None
     music_volume = 0.5
     jump_volume = 0.3
     last_jump_test_time = 0
@@ -648,11 +648,11 @@ def main(name, port, host):
                         game_state = None
 
             if game_state and name in game_state.players:
-                current_on_ground = game_state.players[name].on_ground
-                if prev_on_ground and not current_on_ground and game_state.players[name].speed.y < -5:
+                current_jumps = game_state.players[name].jumps_remaining
+                if prev_jumps is not None and current_jumps < prev_jumps:
                     if jump_sound:
                         jump_sound.play()
-                prev_on_ground = current_on_ground
+                prev_jumps = current_jumps
 
         # If server reports game over, draw overlay + Play Again button on the internal game_surface
         if game_state and getattr(game_state, "game_over", False):
