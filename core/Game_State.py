@@ -108,6 +108,7 @@ class Game_State:
                 acceleration=basis.acceleration * self.active_modifier.speed_mult,
                 max_fall_speed=basis.max_fall_speed,
                 jump_speed=basis.jump_speed,
+                max_jumps=basis.max_jumps + self.active_modifier.extra_jumps,
             )
         else:
             self.active_modifier = None
@@ -226,6 +227,7 @@ class Game_State:
                             acceleration=basis.acceleration * m.speed_mult,
                             max_fall_speed=basis.max_fall_speed,
                             jump_speed=basis.jump_speed,
+                            max_jumps=basis.max_jumps + m.extra_jumps,
                         )
                         break
 
