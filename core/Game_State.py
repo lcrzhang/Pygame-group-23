@@ -64,7 +64,8 @@ class Game_State:
         self.current_level = level
         self.world_size = pygame.Vector2(level.world_size)
 
-        self.platforms = [Platform(x, y, w, h) for x, y, w, h in level.platforms]
+        tex = getattr(level, "platform_image", None)
+        self.platforms = [Platform(x, y, w, h, texture_path=tex) for x, y, w, h in level.platforms]
         # Do NOT create the door immediately — spawn it only after the timer runs out
         self.doors = []
         self.projectiles = []

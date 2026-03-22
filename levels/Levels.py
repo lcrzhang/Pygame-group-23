@@ -170,6 +170,7 @@ LEVEL_1 = Level(
     spawn=(20, 515),
     background="images/Level1/space_bg.png",
     theme="default",
+    platform_image="images/platform_textures/lvl1/tile.png",  # drop tile.png here to activate
     projectile_images=[
         "images/Level1/space_invader_1.png",
         "images/Level1/space_invader_2.png",
@@ -203,6 +204,7 @@ LEVEL_2 = Level(
     background="images/Level2/cave_bg.png",  # dark brown/amber crystals
     projectile_images=["images/Level2/image-removebg-preview.png"],
     theme="cave",
+    platform_image="images/platform_textures/lvl2/tile.png",  # drop tile.png here to activate
     world_size=(1920, 1080),
     # Example: low-gravity cave level — floatier jumps, slower falling
     modifiers=PlayerModifiers(
@@ -245,6 +247,7 @@ LEVEL_3 = Level(
     background="images/Level3/jungle_bg.png",    # lush tropical green
     projectile_images=["images/Level3/banana.png"],
     theme="forest",
+    platform_image="images/platform_textures/lvl3/tile.png",  # drop tile.png here to activate
     world_size=(1920, 1080),    # 2x width, 2x height
 )
 
@@ -271,6 +274,7 @@ LEVEL_4 = Level(
     theme="ice",
     background="images/Level4/ice_bg.png",
     projectile_images=["images/Level4/ice_spike.png"],
+    platform_image="images/platform_textures/lvl4/tile.png",  # drop tile.png here to activate
     modifiers=PlayerModifiers(
         friction=0.99,       # Very slippery map
         acceleration=0.3,    # Difficult to accelerate (ice)
