@@ -27,7 +27,6 @@ But beware: as you progress deeper, the game throws **random physics modifiers**
   * 🏖️ Beach Map
   * ...and more!
 * **Random Modifiers:** Expect the unexpected. Physics and gameplay change dynamically between runs:
-  * 🪶 *Low Gravity*
   * 🏃 *Fast Movement*
   * ⛸️ *Ice Skates*
   * 🙃 *Inverted Controls*
@@ -93,7 +92,7 @@ Example: `python mygame_client.py Leo`
 
 ## 👥 Credits
 **Game made by:**
-* Patrick van de Meent
+* Patrick Lira van de Meent 
 * Leo Chao Ran Zhang
 * Luuk van der Duim
 * Jelle Zegers
