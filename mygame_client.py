@@ -71,6 +71,8 @@ def main(name, port, host):
     
     # State for black hole menu
     black_hole_menu_active = False
+    black_hole_selected_index = 0
+    continue_playing_clicked = False
     
     game_state = None
     started = False
@@ -165,18 +167,25 @@ def main(name, port, host):
                 if gy >= game_h: gy = game_h - 1
 
                 if black_hole_menu_active:
-                    # Continue Button
-                    if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and (game_h // 2) - 40 <= gy <= (game_h // 2) + 40:
-                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                            action.start_game = True
-                            black_hole_menu_active = False
-                    # Main Menu Button
-                    elif game_w // 2 - 200 <= gx <= game_w // 2 + 200 and (game_h // 2 + 100) - 40 <= gy <= (game_h // 2 + 100) + 40:
-                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                            started = False
-                            just_started = False
-                            black_hole_menu_active = False
-                            game_state = None
+                    options = ["Continue Playing", "Main Menu"]
+                    for i, opt in enumerate(options):
+                        by = game_h // 2 + i * 80 - 80
+                        if game_w // 2 - 200 <= gx <= game_w // 2 + 200 and by - 30 <= gy <= by + 30:
+                            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                if i == 0:
+                                    continue_playing_clicked = True
+                                elif i == 1:
+                                    try:
+                                        d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
+                                        socket.send_pyobj(d_action)
+                                        socket.recv_pyobj() # clear response
+                                    except Exception: pass
+                                    started = False
+                                    just_started = False
+                                    black_hole_menu_active = False
+                                    game_state = None
+                            elif event.type == pygame.MOUSEMOTION:
+                                black_hole_selected_index = i
                     
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         continue # swallow clicks if menu is active
@@ -230,7 +239,16 @@ def main(name, port, host):
                                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                                         if i == 0: in_pause_menu = False
                                         elif i == 1: pause_menu_state = "settings"; pause_selected_index = 0
-                                        elif i == 2: in_pause_menu = False; started = False; just_started = False; game_state = None
+                                        elif i == 2: 
+                                            in_pause_menu = False
+                                            try:
+                                                d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
+                                                socket.send_pyobj(d_action)
+                                                socket.recv_pyobj()
+                                            except Exception: pass
+                                            started = False
+                                            just_started = False
+                                            game_state = None
                                     elif event.type == pygame.MOUSEMOTION:
                                         pause_selected_index = i
                         elif pause_menu_state == "settings":
@@ -254,6 +272,25 @@ def main(name, port, host):
                         in_pause_menu = True
                         pause_menu_state = "main"
                         pause_selected_index = 0
+                elif black_hole_menu_active:
+                    options = ["Continue Playing", "Main Menu"]
+                    if event.key in (pygame.K_UP, pygame.K_w):
+                        black_hole_selected_index = (black_hole_selected_index - 1) % len(options)
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        black_hole_selected_index = (black_hole_selected_index + 1) % len(options)
+                    elif event.key == pygame.K_RETURN:
+                        if black_hole_selected_index == 0:
+                            continue_playing_clicked = True
+                        elif black_hole_selected_index == 1:
+                            try:
+                                d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
+                                socket.send_pyobj(d_action)
+                                socket.recv_pyobj() # clear response
+                            except Exception: pass
+                            started = False
+                            just_started = False
+                            black_hole_menu_active = False
+                            game_state = None
                 elif in_pause_menu:
                     options = ["Resume", "Settings", "Quit"] if pause_menu_state == "main" else ["Back"]
                     if event.key in (pygame.K_UP, pygame.K_w):
@@ -269,6 +306,11 @@ def main(name, port, host):
                                 pause_selected_index = 0
                             elif pause_selected_index == 2: # Quit
                                 in_pause_menu = False
+                                try:
+                                    d_action = get_action(name, pygame.key.get_pressed(), disconnect=True)
+                                    socket.send_pyobj(d_action)
+                                    socket.recv_pyobj()
+                                except Exception: pass
                                 started = False
                                 just_started = False
                                 game_state = None
@@ -445,8 +487,9 @@ def main(name, port, host):
                 opt_surf = font.render("Back", True, color)
                 game_surface.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h - 150)))
         else:
-            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked, set_pause=in_pause_menu, color=character_color, debug_command=debug_command)
+            action = get_action(name, pygame.key.get_pressed(), start_game=just_started or play_again_clicked or continue_playing_clicked, set_pause=in_pause_menu, color=character_color, debug_command=debug_command)
             just_started = False
+            continue_playing_clicked = False
             socket.send_pyobj(action) # send action
              
             # Draw background based on last received game_state (if any)
@@ -505,7 +548,7 @@ def main(name, port, host):
                             txt = lore_font.render("What is happening?", True, (255, 255, 255))
                         else:
                             txt = lore_font.render("Is this a... Blackhole?", True, (255, 255, 255))
-                        game_surface.blit(txt, txt.get_rect(center=(game_w // 2, game_h // 2)))
+                        game_surface.blit(txt, txt.get_rect(center=(game_w // 2, game_h // 2 + 150)))
                     
                     else:
                         # Black hole GIF + Spiral Players phase (4s+)
@@ -560,22 +603,21 @@ def main(name, port, host):
                             # Draw overlay
                             overlay = pygame.Surface((game_w, game_h), pygame.SRCALPHA)
                             overlay.fill((0, 0, 0, 180))
+                            
+                            bh_font = pygame.font.SysFont("Comic Sans MS", 72, bold=True)
+                            title_surf = bh_font.render("YOU'VE COMPLETED THE GAME!", True, (255, 255, 255))
+                            overlay.blit(title_surf, title_surf.get_rect(center=(game_w // 2, game_h // 4)))
+                            
+                            bh_small = pygame.font.SysFont("Comic Sans MS", 54)
+                            ready_count = sum(1 for p in game_state.players.values() if getattr(p, "is_ready", False))
+                            total_count = len(game_state.players) if game_state.players else 1
+                            options = [f"Continue Playing ({ready_count}/{total_count})", "Main Menu"]
+                            for i, opt in enumerate(options):
+                                color = (255, 255, 100) if i == black_hole_selected_index else (200, 200, 200)
+                                opt_surf = bh_small.render(opt, True, color)
+                                overlay.blit(opt_surf, opt_surf.get_rect(center=(game_w // 2, game_h // 2 + i * 80 - 80)))
+
                             game_surface.blit(overlay, (0, 0))
-                            
-                            title_surf = font.render("YOU'VE COMPLETED THE GAME!", True, (255, 255, 255))
-                            game_surface.blit(title_surf, title_surf.get_rect(center=(game_w // 2, game_h // 3)))
-                            
-                            # Buttons
-                            btn_font = small_font
-                            # Continue Button
-                            cont_surf = btn_font.render("CONTINUE PLAYING", True, (0, 255, 0))
-                            cont_rect = cont_surf.get_rect(center=(game_w // 2, game_h // 2 ))
-                            game_surface.blit(cont_surf, cont_rect)
-                            
-                            # Main Menu Button
-                            menu_surf = btn_font.render("BACK TO MAIN MENU", True, (255, 50, 50))
-                            menu_rect = menu_surf.get_rect(center=(game_w // 2, game_h // 2 + 100))
-                            game_surface.blit(menu_surf, menu_rect)
             else:
                 # no game state yet — clear to default
                 game_surface.fill(background_color)
@@ -587,6 +629,9 @@ def main(name, port, host):
                 # If receive fails, stop running
                 running = False
             else:
+                if not getattr(game_state, "black_hole_active", False):
+                    black_hole_menu_active = False
+
                 # If we requested "Play Again", server should have reset state.
                 # Return client to the start screen and clear local UI state so the player
                 # sees the welcome screen again (fully reset).
@@ -712,14 +757,14 @@ def main(name, port, host):
         pygame.display.flip()
         clock.tick(60) # run at 60 frames per second
 
-def get_action(name, keys, start_game=False, set_pause=None, color=(255, 255, 255), debug_command=None):
+def get_action(name, keys, start_game=False, set_pause=None, color=(255, 255, 255), debug_command=None, disconnect=False):
     if set_pause:
-        return Action(name, False, False, False, False, start_game, set_pause, color, debug_command)
+        return Action(name, False, False, False, False, start_game, set_pause, color, debug_command, disconnect)
     left = keys[pygame.K_LEFT] or keys[pygame.K_a]
     right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
     jump = keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_SPACE]
     down = keys[pygame.K_DOWN] or keys[pygame.K_s]
-    return Action(name, left, right, jump, down, start_game, set_pause, color, debug_command)
+    return Action(name, left, right, jump, down, start_game, set_pause, color, debug_command, disconnect)
 
 class Name_Textures: # class to generate and store textures of user names
 

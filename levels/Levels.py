@@ -143,7 +143,7 @@ LOBBY_LEVEL = Level(
 )
 
 LEVEL_1 = Level(
-    name="The Beginning",
+    name="Galaxy Map",
     platforms=[
 
         (0,   1000, 1920, 80), #Ground
@@ -283,7 +283,7 @@ LEVEL_4 = Level(
 )
 
 LEVEL_5 = Level(
-    name="Beach Resort",
+    name="Beach Map",
     platforms=[
         # Ground
         (0,   1000, 1920, 80),

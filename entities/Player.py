@@ -26,6 +26,13 @@ class Player:
         if modifiers is None:
             modifiers = PlayerModifiers()
 
+        if self.health <= 0:
+            if action.is_left(): self.speed.x -= modifiers.acceleration
+            if action.is_right(): self.speed.x += modifiers.acceleration
+            if action.is_jump(): self.speed.y -= modifiers.acceleration
+            if action.is_down(): self.speed.y += modifiers.acceleration
+            return
+
         if action.is_left():
             self.speed.x -= modifiers.acceleration
         if action.is_right():
@@ -48,6 +55,30 @@ class Player:
         from levels.Levels import PlayerModifiers
         if modifiers is None:
             modifiers = PlayerModifiers()
+
+        if self.health <= 0:
+            self.speed.x *= modifiers.friction
+            self.speed.y *= modifiers.friction
+            
+            self.position.x += self.speed.x
+            self.position.y += self.speed.y
+            
+            if self.position.x < 0:
+                self.position.x = 0
+                self.speed.x = 0
+            elif self.position.x > world_size.x - Player.width:
+                self.position.x = world_size.x - Player.width
+                self.speed.x = 0
+                
+            if self.position.y < 0:
+                self.position.y = 0
+                self.speed.y = 0
+            elif self.position.y > world_size.y - Player.height:
+                self.position.y = world_size.y - Player.height
+                self.speed.y = 0
+            
+            self.on_ground = (self.position.y >= world_size.y - Player.height)
+            return
 
         # Apply gravity
         if self.speed.y < 0 and not self.is_jumping_btn_held:
@@ -108,7 +139,39 @@ class Player:
                     self.speed.y = 0
                     self.on_ground = True
 
-    def draw(self, surface, name_textures):
+    def draw(self, surface, name_textures, viewer_name=None, is_viewer_dead=False):
+        if self.health <= 0:
+            # Visible if it's the local player, or if the local player is also dead
+            if self.name != viewer_name and not is_viewer_dead:
+                return # Invisible to living players
+                
+            if not hasattr(self, 'ghost_img'):
+                try:
+                    import os
+                    img_path = "images/general (All levels)/ghost.png"
+                    self.ghost_img = pygame.image.load(img_path).convert_alpha()
+                    self.ghost_img = pygame.transform.scale(self.ghost_img, (Player.width, Player.height))
+                    self.ghost_img.set_alpha(128) # 50% opacity
+                except Exception:
+                    self.ghost_img = None
+            
+            if self.ghost_img:
+                surface.blit(self.ghost_img, (int(self.position.x), int(self.position.y)))
+            else:
+                ghost_surf = pygame.Surface((Player.width, Player.height), pygame.SRCALPHA)
+                pygame.draw.rect(ghost_surf, (self.color[0], self.color[1], self.color[2], 128), (0,0,Player.width,Player.height), 4)
+                surface.blit(ghost_surf, (int(self.position.x), int(self.position.y)))
+                
+            name_texture = name_textures.get_texture(self.name)
+            name_surf = name_texture.copy()
+            name_surf.set_alpha(128)
+            text_offset = pygame.Vector2(name_texture.get_size())
+            text_offset.x /= 2
+            text_offset.x -= Player.width / 2
+            text_offset.y += 10
+            surface.blit(name_surf, self.position - text_offset)
+            return
+
         rect = pygame.Rect(self.position.x, self.position.y, Player.width, Player.height)
         pygame.draw.rect(surface, self.color, rect, 4)
         name_texture = name_textures.get_texture(self.name)

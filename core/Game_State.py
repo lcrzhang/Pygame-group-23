@@ -146,19 +146,48 @@ class Game_State:
                     self.doors = [Door(ld[0], ld[1], False)]
 
     def update(self, action):
+        name = action.get_name()
+        
+        if getattr(action, 'disconnect', False):
+            if name in self.players:
+                p = self.players.pop(name)
+                if p in self.units:
+                    self.units.remove(p)
+                    
+                if not self.players:
+                    self._full_reset()
+                    return
+                    
+                # Check black hole readiness again in case they were the last holdout
+                if getattr(self, "black_hole_active", False) and self.players:
+                    if all(p.is_ready for p in self.players.values()):
+                        if self.levels_played < 10:
+                            self.black_hole_active = False
+                            self.black_hole_start_time = 0.0
+                            for px in self.players.values(): px.is_ready = False
+                            self.load_level(index=None)
+                        else:
+                            self._full_reset()
+            return
+
         # If black hole sequence finished and player pressed Start (Continue)
         if action.is_start_game() and getattr(self, "black_hole_active", False):
-            if self.levels_played < 10:
-                # PROGRESS to next random level
-                self.black_hole_active = False
-                self.black_hole_start_time = 0.0
-                # load_level will increment levels_played to 6, 7, etc.
-                self.load_level(index=None)
-                return
-            else:
-                # FULL RESET if reached level 10
-                self._full_reset()
-                return
+            if name in self.players:
+                self.players[name].is_ready = True
+            
+            if self.players and all(p.is_ready for p in self.players.values()):
+                if self.levels_played < 10:
+                    # PROGRESS to next random level
+                    self.black_hole_active = False
+                    self.black_hole_start_time = 0.0
+                    for px in self.players.values(): px.is_ready = False
+                    self.load_level(index=None)
+                    return
+                else:
+                    # FULL RESET if reached level 10
+                    self._full_reset()
+                    return
+            return
 
         # If game over and player pressed Start
         if action.is_start_game() and getattr(self, "game_over", False):
@@ -411,8 +440,12 @@ class Game_State:
         for proj in self.projectiles:
             proj.draw(surface)
             
+        is_viewer_dead = False
+        if name in self.players:
+            is_viewer_dead = self.players[name].health <= 0
+            
         for unit in self.units:
-            unit.draw(surface, name_textures)
+            unit.draw(surface, name_textures, name, is_viewer_dead)
 
         # ── Draw kill zones ───────────────────────────────────────────────────
         if hasattr(self, "current_level") and self.current_level and self.current_level.kill_zones:
