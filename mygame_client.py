@@ -546,8 +546,8 @@ def main(name, port, host):
             elif main_menu_state == "credits":
                 title = font.render("Game made by:", True, (255, 255, 255))
                 game_surface.blit(title, title.get_rect(center=(game_w // 2, game_h // 2 - 180)))
-                
-                names = ["Patrick", "Leo", "Luuk", "Jelle"]
+
+                names = ["Patrick Lira van de Meent", "Leo Zhang ", "Luuk van der Duim ", "Jelle Zegers", "soundtrack: Fun Time by Zambolino"]
                 for i, n in enumerate(names):
                     n_surf = font.render(n, True, (200, 200, 255))
                     game_surface.blit(n_surf, n_surf.get_rect(center=(game_w // 2, game_h // 2 - 60 + i * 80)))
