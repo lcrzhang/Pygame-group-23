@@ -38,11 +38,17 @@ class Player:
         if action.is_right():
             self.speed.x += modifiers.acceleration
             
+        just_pressed_jump = action.is_jump() and not getattr(self, "prev_jump_held", False)
+        self.prev_jump_held = action.is_jump()
         self.is_jumping_btn_held = action.is_jump()
-        if self.is_jumping_btn_held and self.on_ground:
+        
+        jumps_rem = getattr(self, "jumps_remaining", modifiers.max_jumps)
+        if just_pressed_jump and jumps_rem > 0:
             # increase jump impulse so jump height is higher
             self.speed.y = modifiers.jump_speed * 1.2
             self.on_ground = False
+            self.just_jumped = True
+            self.jumps_remaining = jumps_rem - 1
 
         # Drop through platforms when holding down while on a platform
         self.drop_through = action.is_down()
@@ -138,6 +144,7 @@ class Player:
                     self.position.y = player_rect.y
                     self.speed.y = 0
                     self.on_ground = True
+                    self.jumps_remaining = modifiers.max_jumps
 
     def draw(self, surface, name_textures, viewer_name=None, is_viewer_dead=False):
         if self.health <= 0:

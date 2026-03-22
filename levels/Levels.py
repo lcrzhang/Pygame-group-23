@@ -40,6 +40,7 @@ class PlayerModifiers:
     acceleration:   float = 1.0   # horizontal speed delta per frame
     friction:       float = 0.85  # horizontal speed multiplier per frame
     max_fall_speed: float = 15    # terminal falling velocity
+    max_jumps:      int   = 1     # maximum consecutive jumps (1 = single jump, 2 = double)
 
 
 @dataclass
@@ -56,15 +57,16 @@ class LevelModifier:
     projectile_size_mult: float = 1.0
     projectile_speed_mult: float = 1.0
     restrict_spawn_edge: Optional[str] = None  # "top", "sides", or None
+    extra_jumps: int = 0
 
 
 # ── Available random modifiers ───────────────────────────────────────────────
 AVAILABLE_MODIFIERS: List[LevelModifier] = [
     LevelModifier("Low Gravity",       gravity_mult=0.5),
-    LevelModifier("High Gravity",      gravity_mult=1.5),
     LevelModifier("Fast Movement",     speed_mult=1.5),
     LevelModifier("Ice Skates",        friction_mult=1.15),
     LevelModifier("Inverted Controls", inverted_controls=True),
+    LevelModifier("Double Jump",       extra_jumps=1),
     LevelModifier("Meteor Shower",     projectile_size_mult=2.0, projectile_speed_mult=0.5, restrict_spawn_edge="top"),
     LevelModifier("Sniper Fire",       projectile_size_mult=0.5, projectile_speed_mult=2.0, restrict_spawn_edge="sides"),
 ]
